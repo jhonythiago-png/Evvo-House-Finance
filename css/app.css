@@ -662,3 +662,55 @@ body.com-folha { overflow: hidden; }
 .card-rotulo { font-size: 13px; color: var(--suave); }
 .card-clientes strong { font-family: var(--fonte-titulo); font-size: 20px; color: var(--azul); }
 .ver-todas { justify-content: center; color: var(--verde); font-weight: 600; font-size: 14px; min-height: 48px; }
+
+/* =====================================================================
+   Etapa 6 — conferência e fechamento
+   ===================================================================== */
+.lanc-a .lanc-icone { background: var(--ambar-claro); color: var(--ambar-texto); }
+.lanc-a .item-valor { color: var(--ambar-texto); }
+.mes-nav h2 .item-tag { vertical-align: middle; margin-left: 6px; }
+
+.status-mes { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.status-mes div { display: flex; flex-direction: column; gap: 2px; }
+.status-mes small { color: var(--suave); font-size: 13px; line-height: 1.45; }
+.status-mes.fechado { background: var(--verde-claro); }
+.status-mes.fechado strong { color: var(--verde-escuro); }
+
+.conf, .fechar { display: flex; flex-direction: column; gap: 14px; }
+.conf-lista { display: flex; flex-direction: column; }
+.conf-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 140px) 82px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--linha);
+}
+.conf-linha:first-child { border-top: none; }
+.conf-nome { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.conf-nome strong { font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.conf-nome small { font-size: 12px; color: var(--suave); }
+.conf-linha input {
+  min-height: 46px; padding: 0 10px; border: 1px solid var(--borda); border-radius: 12px;
+  font-size: 15px; width: 100%; min-width: 0; background: var(--superficie);
+}
+.conf-dif { font-size: 13px; font-weight: 700; text-align: right; }
+.conf-dif.ok { color: var(--verde-escuro); }
+.conf-dif.neg { color: var(--saida-texto); }
+.conf-total { font-size: 14px; font-weight: 600; line-height: 1.45; }
+.conf-total:empty { display: none; }
+.conf-total.ok { color: var(--verde-escuro); }
+.conf-total.neg { color: var(--saida-texto); }
+@media (max-width: 420px) {
+  .conf-linha { grid-template-columns: minmax(0, 1fr) 76px; }
+  .conf-linha .conf-nome { grid-column: 1 / -1; }
+}
+
+.checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.checklist li { padding-left: 28px; position: relative; font-size: 14px; line-height: 1.45; }
+.checklist li::before {
+  position: absolute; left: 0; top: 0; width: 20px; height: 20px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+}
+.checklist li.ok::before { content: '✓'; background: var(--verde-claro); color: var(--verde-escuro); }
+.checklist li.pendente::before { content: '!'; background: var(--ambar-claro); color: var(--ambar-texto); }

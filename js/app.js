@@ -9,6 +9,7 @@ import { renderCadastro, TITULOS_CADASTRO } from './cadastros.js';
 import { renderInicio, renderLancar } from './lancamentos.js';
 import { renderContas, TITULOS_CONTAS } from './contas.js';
 import { renderReceber } from './receber.js';
+import { renderConferencia } from './conferencia.js';
 
 const raiz = document.getElementById('app');
 
@@ -113,7 +114,8 @@ const TELAS = {
     vazio: { titulo: 'Gráficos e relatórios', texto: 'Comparativos mensal e anual, gastos por grupo, renda por cliente, impressão e PDF.', etapa: 'Etapa 7' }
   },
   mais: { nome: 'Mais' },
-  receber: { nome: 'A receber de clientes' }
+  receber: { nome: 'A receber de clientes' },
+  conferir: { nome: 'Conferência e fechamento' }
 };
 const ORDEM_NAV = ['inicio', 'contas', 'lancar', 'relatorios', 'mais'];
 
@@ -441,6 +443,8 @@ function renderTela() {
     renderContas(criarCtx(conteudo), partes);
   } else if (atual === 'receber') {
     renderReceber(criarCtx(conteudo));
+  } else if (atual === 'conferir') {
+    renderConferencia(criarCtx(conteudo));
   } else if (atual === 'mais' && sub) {
     const ctx = {
       el: conteudo,
@@ -489,9 +493,10 @@ function telaMais() {
         ['clientes', 'Clientes', 'Quem paga a renda da empresa'],
         ['categorias', 'Categorias', 'Grupos e regra do dízimo'],
         ['pessoas', 'Pessoas da casa', 'Quem usa o app com você'],
-        ['lar', 'Dízimo e dados do lar', 'Nome do lar e percentual do dízimo']
+        ['lar', 'Dízimo e dados do lar', 'Nome do lar e percentual do dízimo'],
+        ['#/conferir', 'Conferência e fechamento', 'Conferir saldos com o banco e fechar o mês']
       ].map(([id, t, d]) => `
-        <a class="item" href="#/mais/${id}">
+        <a class="item" href="${id.startsWith('#') ? id : '#/mais/' + id}">
           <span class="item-texto"><strong>${t}</strong><small>${d}</small></span>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </a>`).join('')}

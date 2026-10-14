@@ -58,7 +58,8 @@ async function carregarBase(lar) {
 const ICONE = {
   e: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
   s: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
-  t: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 7h12l-4-4M17 17H5l4 4"/></svg>'
+  t: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 7h12l-4-4M17 17H5l4 4"/></svg>',
+  a: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h10M4 17h6M18 4v6M15 7h6M14 17h6"/></svg>'
 };
 
 // =====================================================================
@@ -70,12 +71,12 @@ export async function renderInicio(ctx) {
 
   const f = `${lista.mes}-01`;
   const n = `${proximoMes(lista.mes)}-01`;
-  let base, ent, des, tra, mem, diz, apagar;
+  let base, ent, des, tra, mem, diz, apagar, ajs, fech;
   try {
     // Garante que o dízimo do mês está calculado antes de mostrar.
     const sync = await supabase.rpc('sincronizar_dizimo', { p_mes: f });
     if (sync.error) throw sync.error;
-    [base, ent, des, tra, mem, diz, apagar] = await Promise.all([
+    [base, ent, des, tra, mem, diz, apagar, ajs, fech] = await Promise.all([
       carregarBase(lar),
       supabase.from('entradas')
         .select('*, categoria:categorias!entradas_categoria_fkey(nome, grupo), cliente:clientes!entradas_cliente_fkey(nome), conta:contas!entradas_conta_fkey(nome)')
@@ -90,9 +91,12 @@ export async function renderInicio(ctx) {
       supabase.rpc('dizimo_mes', { p_mes: f }),
       supabase.from('v_despesas').select('id, descricao, vencimento, valor, falta, status, atrasada, origem')
         .eq('lar_id', lar.id).eq('competencia', f).in('origem', ['fixa', 'conta', 'dizimo']).neq('status', 'pago')
-        .order('vencimento')
+        .order('vencimento'),
+      supabase.from('ajustes').select('id, data, diferenca, motivo, conta_id, criado_por, criado_em')
+        .eq('lar_id', lar.id).gte('data', f).lt('data', n),
+      supabase.from('meses_fechados').select('competencia').eq('lar_id', lar.id).eq('competencia', f)
     ]);
-    for (const r of [ent, des, tra, mem, diz, apagar]) if (r.error) throw r.error;
+    for (const r of [ent, des, tra, mem, diz, apagar, ajs, fech]) if (r.error) throw r.error;
   } catch (e) {
     ctx.el.innerHTML = `<div class="aviso aviso-erro" role="alert">${esc(erroBanco(e))}</div>`;
     return;
@@ -136,6 +140,14 @@ export async function renderInicio(ctx) {
     criado: t.criado_em
   }));
 
+  ajs.data.forEach((a) => itens.push({
+    tipo: 'a', id: a.id, data: a.data, valor: Number(a.diferenca), contas: [a.conta_id], link: '#/conferir',
+    titulo: 'Ajuste de conferência',
+    sub: [nomeConta[a.conta_id], a.motivo].filter(Boolean).join(' · ') + quem(a.criado_por),
+    criado: a.criado_em
+  }));
+  const mesFechado = fech.data.length > 0;
+
   const totEnt = ent.data.reduce((s, e) => s + Number(e.valor), 0);
   const totSai = des.data.reduce((s, d) => s + Number(d.valor), 0);
   const resultado = totEnt - totSai;
@@ -163,13 +175,13 @@ export async function renderInicio(ctx) {
     <a class="item lanc lanc-${i.tipo}" href="${i.link ? esc(i.link) : `#/lancar/${i.tipo}/${esc(i.id)}`}">
       <span class="lanc-icone">${ICONE[i.tipo]}</span>
       <span class="item-texto"><strong>${esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.situacao ? `<span class="item-tag tag-cinza aviso-saldo">${i.situacao} · ver em Contas</span>` : ''}${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
-      <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : ''}${esc(fmtNumero(i.valor))}</span>
+      <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : i.tipo === 'a' ? (i.valor < 0 ? '− ' : '+ ') : ''}${esc(fmtNumero(Math.abs(i.valor)))}</span>
     </a>`;
 
   ctx.el.innerHTML = `
     <div class="mes-nav">
       <button class="btn-icone" type="button" data-mes="-1" aria-label="Mês anterior"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-      <h2>${esc(nomeMes(lista.mes))}</h2>
+      <h2>${esc(nomeMes(lista.mes))}${mesFechado ? ' <span class="item-tag tag-cinza">Fechado</span>' : ''}</h2>
       <button class="btn-icone" type="button" data-mes="1" aria-label="Próximo mês"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
 
@@ -209,6 +221,7 @@ export async function renderInicio(ctx) {
             <span><span class="item-tag tag-${c.natureza === 'PJ' ? 'azul' : 'verde'}">${esc(c.natureza)}</span> ${esc(c.nome)}</span>
             <strong class="${Number(c.saldo_atual) < 0 ? 'neg' : ''}">${esc(fmtMoeda(c.saldo_atual))}</strong>
           </div>`).join('')}
+        <a class="item ver-todas" href="#/conferir">Conferir com o banco</a>
       </details>` : `
       <section class="cartao vazio">
         <h2>Cadastre suas contas primeiro</h2>

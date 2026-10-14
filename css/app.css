@@ -794,4 +794,7 @@ body.com-folha { overflow: hidden; }
   .imp-tabela td:last-child, .imp-tabela th:last-child { text-align: right; }
   .imp-tabela tfoot td { font-weight: 700; border-top: 1px solid #15201A; border-bottom: none; }
   .imp-tabela tr { break-inside: avoid; }
+  .imp-tabela .nw, .imp-tabela td:last-child { white-space: nowrap; }
+  .imp-tabela tfoot td { white-space: nowrap; }
+  .imp-nota { margin: 0 0 6px; color: #4F5E56; }
 }

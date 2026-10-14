@@ -88,12 +88,15 @@ export async function renderInicio(ctx) {
   }
 
   const nomeConta = Object.fromEntries(base.contas.map((c) => [c.id, c.nome]));
+  const corte = Object.fromEntries(base.contas.map((c) => [c.id, c.data_saldo_inicial]));
+  // Lançamento com data igual ou anterior ao saldo inicial da conta não muda o saldo.
+  const foraDoSaldo = (data, ids) => ids.some((id) => id && corte[id] && data <= corte[id]);
   const nomeQuem = Object.fromEntries(mem.data.map((m) => [m.user_id, (m.nome || '').split(' ')[0]]));
   const quem = (id) => (nomeQuem[id] ? ' · ' + nomeQuem[id] : '');
 
   const itens = [];
   ent.data.forEach((e) => itens.push({
-    tipo: 'e', id: e.id, data: e.data, valor: Number(e.valor), contas: [e.conta_id],
+    tipo: 'e', id: e.id, data: e.data, valor: Number(e.valor), contas: [e.conta_id], fora: foraDoSaldo(e.data, [e.conta_id]),
     titulo: e.cliente?.nome || e.descricao || e.categoria?.nome,
     sub: [e.categoria?.nome, e.conta ? e.conta.nome : 'Ficou com o cliente', e.cliente && e.descricao ? e.descricao : null].filter(Boolean).join(' · ') + quem(e.criado_por),
     criado: e.criado_em
@@ -101,14 +104,14 @@ export async function renderInicio(ctx) {
   des.data.forEach((d) => {
     const contas = (d.pagamentos || []).filter((p) => p.conta_id).map((p) => p.conta_id);
     itens.push({
-      tipo: 's', id: d.id, data: d.vencimento, valor: Number(d.valor), contas,
+      tipo: 's', id: d.id, data: d.vencimento, valor: Number(d.valor), contas, fora: foraDoSaldo(d.vencimento, contas),
       titulo: d.descricao,
       sub: [d.categoria?.nome, contas.map((c) => nomeConta[c]).join(' + ')].filter(Boolean).join(' · ') + quem(d.criado_por),
       criado: d.criado_em
     });
   });
   tra.data.forEach((t) => itens.push({
-    tipo: 't', id: t.id, data: t.data, valor: Number(t.valor), contas: [t.conta_origem, t.conta_destino],
+    tipo: 't', id: t.id, data: t.data, valor: Number(t.valor), contas: [t.conta_origem, t.conta_destino], fora: foraDoSaldo(t.data, [t.conta_origem, t.conta_destino]),
     titulo: t.descricao || 'Transferência',
     sub: `${t.origem?.nome} → ${t.destino?.nome}` + quem(t.criado_por),
     criado: t.criado_em
@@ -136,7 +139,7 @@ export async function renderInicio(ctx) {
   const linhaItem = (i) => `
     <a class="item lanc lanc-${i.tipo}" href="#/lancar/${i.tipo}/${esc(i.id)}">
       <span class="lanc-icone">${ICONE[i.tipo]}</span>
-      <span class="item-texto"><strong>${esc(i.titulo)}</strong><small>${esc(i.sub)}</small></span>
+      <span class="item-texto"><strong>${esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
       <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : ''}${esc(fmtNumero(i.valor))}</span>
     </a>`;
 
@@ -489,6 +492,17 @@ export async function renderLancar(ctx, tipoRota, id) {
     if (!st.data) return mostrarErro(form, 'Informe a data.');
     const comp = (st.comp || st.data.slice(0, 7)) + '-01';
     let erro = null;
+
+    // Data igual ou anterior ao saldo inicial: pede confirmação para não confundir.
+    const idsContas = st.tipo === 'entrada' ? [st.onde] : st.tipo === 'saida' ? st.linhas.map((l) => l.conta) : [st.de, st.para];
+    const antigas = base.contas.filter((c) => idsContas.includes(c.id) && st.data <= c.data_saldo_inicial);
+    if (antigas.length) {
+      const nomes = antigas.map((c) => `${c.nome} (saldo inicial em ${dataBR(c.data_saldo_inicial)})`).join(', ');
+      const ok = confirm(`A data ${dataBR(st.data)} é igual ou anterior ao saldo inicial de ${nomes}.\n\n` +
+        'Este lançamento vai aparecer no mês, mas NÃO vai mudar o saldo dessa conta, porque ele já está dentro do saldo informado.\n\n' +
+        'Salvar mesmo assim?');
+      if (!ok) return;
+    }
 
     if (st.tipo === 'entrada') {
       if (!st.categoria) return mostrarErro(form, 'Escolha a categoria.');

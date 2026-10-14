@@ -103,7 +103,11 @@ export async function renderInicio(ctx) {
   }));
   des.data.forEach((d) => {
     const contas = (d.pagamentos || []).filter((p) => p.conta_id).map((p) => p.conta_id);
+    const pago = (d.pagamentos || []).reduce((s, p) => s + Number(p.valor), 0);
+    const situacao = pago >= Number(d.valor) - 0.005 ? '' : pago > 0 ? 'Parcial' : 'A pagar';
     itens.push({
+      link: d.origem === 'avulsa' ? null : `#/contas/m/${lista.mes}`,
+      situacao,
       tipo: 's', id: d.id, data: d.vencimento, valor: Number(d.valor), contas, fora: foraDoSaldo(d.vencimento, contas),
       titulo: d.descricao,
       sub: [d.categoria?.nome, contas.map((c) => nomeConta[c]).join(' + ')].filter(Boolean).join(' · ') + quem(d.criado_por),
@@ -137,9 +141,9 @@ export async function renderInicio(ctx) {
   filtrados.forEach((i) => { (porDia[i.data] = porDia[i.data] || []).push(i); });
 
   const linhaItem = (i) => `
-    <a class="item lanc lanc-${i.tipo}" href="#/lancar/${i.tipo}/${esc(i.id)}">
+    <a class="item lanc lanc-${i.tipo}" href="${i.link ? esc(i.link) : `#/lancar/${i.tipo}/${esc(i.id)}`}">
       <span class="lanc-icone">${ICONE[i.tipo]}</span>
-      <span class="item-texto"><strong>${esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
+      <span class="item-texto"><strong>${esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.situacao ? `<span class="item-tag tag-cinza aviso-saldo">${i.situacao} · ver em Contas</span>` : ''}${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
       <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : ''}${esc(fmtNumero(i.valor))}</span>
     </a>`;
 
@@ -204,7 +208,7 @@ export async function renderInicio(ctx) {
         <p>${itens.length ? 'Mude o filtro ou a busca.' : 'Toque no botão + para lançar entradas, saídas e transferências.'}</p>
       </section>`}
 
-    <p class="nota-etapa">Dízimo do mês, contas a pagar e dinheiro com clientes entram nesta tela nas Etapas 4 e 5.</p>`;
+    <p class="nota-etapa">Saídas do mês incluem as contas do mês, pagas ou não. O saldo das contas só muda quando a conta é paga. Dízimo e dinheiro com clientes entram nesta tela na Etapa 5.</p>`;
 
   ctx.el.querySelectorAll('[data-mes]').forEach((b) => b.addEventListener('click', () => {
     lista.mes = proximoMes(lista.mes, Number(b.dataset.mes));

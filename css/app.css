@@ -591,3 +591,45 @@ body.com-folha { overflow: hidden; }
 #ajudaCorte:empty, #ajudaLinhas:empty, #ajudaOnde:empty { display: none; }
 
 .aviso-saldo { align-self: flex-start; margin-top: 4px; font-weight: 600; white-space: normal; }
+
+/* =====================================================================
+   Etapa 4 — contas do mês e pagamentos
+   ===================================================================== */
+.resumo-contas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.resumo-contas div {
+  background: var(--superficie); border-radius: 14px; padding: 12px;
+  box-shadow: 0 1px 0 var(--linha); display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.resumo-contas span { font-size: 12px; color: var(--suave); }
+.resumo-contas strong { font-size: 14px; overflow-wrap: anywhere; }
+.resumo-contas .pago { background: var(--verde-claro); box-shadow: none; }
+.resumo-contas .pago span, .resumo-contas .pago strong { color: var(--verde-escuro); }
+.resumo-contas .falta { background: var(--saida-claro); box-shadow: none; }
+.resumo-contas .falta span, .resumo-contas .falta strong { color: var(--saida-texto); }
+.aviso-atraso { background: var(--saida-claro); color: var(--saida-texto); }
+
+.conta-item { cursor: default; padding-right: 14px; }
+.conta-item:hover { background: none; }
+.conta-item.atrasada { box-shadow: inset 4px 0 0 var(--saida); }
+.conta-info {
+  flex: 1; min-width: 0; border: none; background: none; padding: 0; text-align: left;
+  color: var(--tinta); cursor: pointer; display: flex; min-height: 44px; align-items: center;
+}
+.conta-direita { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.item-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.status-aberta { background: var(--verde); color: #FFFFFF; min-width: 82px; }
+.status-parcial { background: var(--ambar-claro); color: var(--ambar-texto); min-width: 82px; }
+.status-pago { background: var(--verde-claro); color: var(--verde-escuro); min-width: 82px; }
+
+.pag-resumo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; background: var(--fundo); border-radius: 14px; padding: 12px; }
+.pag-resumo div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pag-resumo span { font-size: 12px; color: var(--suave); }
+.pag-resumo strong { font-size: 14px; overflow-wrap: anywhere; }
+.pag-feito { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--linha); font-size: 14px; }
+
+.dia-badge {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px;
+  background: var(--fundo); color: var(--verde-escuro);
+  font-family: var(--fonte-titulo); font-weight: 700; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}

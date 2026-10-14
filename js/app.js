@@ -4,8 +4,10 @@
 // =====================================================================
 import { supabase, enderecoDoApp } from './supabase.js';
 import { APP_VERSAO } from './config.js';
+import { fecharFolha } from './util.js';
 import { renderCadastro, TITULOS_CADASTRO } from './cadastros.js';
 import { renderInicio, renderLancar } from './lancamentos.js';
+import { renderContas, TITULOS_CONTAS } from './contas.js';
 
 const raiz = document.getElementById('app');
 
@@ -405,6 +407,7 @@ function renderApp() {
 
   if (!navegacaoLigada) {
     window.addEventListener('hashchange', () => {
+      fecharFolha();
       if (estado.info?.lar?.tem_acesso && document.getElementById('conteudo')) renderTela();
     });
     navegacaoLigada = true;
@@ -415,7 +418,11 @@ function renderApp() {
 function renderTela() {
   const { tela: atual, sub, partes } = rotaAtual();
   const editandoLanc = atual === 'lancar' && partes[2];
-  const titulo = sub ? TITULOS_CADASTRO[sub] : (editandoLanc ? 'Editar lançamento' : TELAS[atual].nome);
+  const titulo = sub ? TITULOS_CADASTRO[sub]
+    : editandoLanc ? 'Editar lançamento'
+    : atual === 'contas' && TITULOS_CONTAS[partes[1]] ? TITULOS_CONTAS[partes[1]]
+    : atual === 'contas' ? 'Contas do mês'
+    : TELAS[atual].nome;
   document.getElementById('tituloTela').textContent = titulo;
   document.title = titulo + ' · Evvo House Finance';
   document.querySelectorAll('.nav a').forEach((a) => {
@@ -428,6 +435,8 @@ function renderTela() {
     renderInicio(criarCtx(conteudo));
   } else if (atual === 'lancar') {
     renderLancar(criarCtx(conteudo), partes[1], partes[2]);
+  } else if (atual === 'contas') {
+    renderContas(criarCtx(conteudo), partes);
   } else if (atual === 'mais' && sub) {
     const ctx = {
       el: conteudo,

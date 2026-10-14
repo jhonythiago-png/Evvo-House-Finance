@@ -1,7 +1,7 @@
 // Evvo House Finance — service worker.
 // Guarda só os arquivos do app. Dados do Supabase nunca ficam em cache.
 // Ao publicar uma nova versão, aumente o número em CACHE.
-const CACHE = 'ehf-v0.4.1';
+const CACHE = 'ehf-v0.5.0';
 const ARQUIVOS = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const ARQUIVOS = [
   './js/util.js',
   './js/cadastros.js',
   './js/lancamentos.js',
+  './js/contas.js',
   './master.html',
   './js/master.js',
   './css/master.css',

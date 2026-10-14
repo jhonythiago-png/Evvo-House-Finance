@@ -633,3 +633,32 @@ body.com-folha { overflow: hidden; }
   font-family: var(--fonte-titulo); font-weight: 700; font-size: 15px;
   display: flex; align-items: center; justify-content: center;
 }
+
+/* =====================================================================
+   Etapa 5 — dízimo, a pagar e dinheiro com clientes no Início
+   ===================================================================== */
+.painel-saldo small { font-size: 13px; color: #CFE3D8; }
+.tag-vermelho { background: var(--saida-claro); color: var(--saida-texto); }
+.sem-pad { padding: 0 !important; }
+
+.card-dizimo { display: flex; flex-direction: column; gap: 12px; }
+.card-dizimo .btn { align-self: flex-start; min-height: 42px; }
+.dizimo-conta { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.dizimo-conta div { display: flex; justify-content: space-between; gap: 10px; }
+.dizimo-conta div span:first-child { color: var(--suave); }
+.dizimo-conta .base { border-top: 1px dashed var(--borda); padding-top: 6px; font-weight: 600; }
+.dizimo-valor {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: var(--ambar-claro); color: var(--ambar-texto); border-radius: 14px; padding: 12px 14px;
+}
+.dizimo-valor span { font-weight: 600; font-size: 14px; }
+.dizimo-valor strong { font-family: var(--fonte-titulo); font-size: 20px; }
+.dizimo-dif { margin: 0; font-size: 13px; color: var(--ambar-texto); line-height: 1.45; }
+
+.card-link {
+  display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--tinta);
+}
+.card-link > svg { color: var(--suave); flex-shrink: 0; }
+.card-rotulo { font-size: 13px; color: var(--suave); }
+.card-clientes strong { font-family: var(--fonte-titulo); font-size: 20px; color: var(--azul); }
+.ver-todas { justify-content: center; color: var(--verde); font-weight: 600; font-size: 14px; min-height: 48px; }

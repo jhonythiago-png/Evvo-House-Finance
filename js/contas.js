@@ -6,7 +6,7 @@
 import { supabase } from './supabase.js';
 import {
   esc, fmtMoeda, fmtNumero, parseMoeda, dataBR, hojeISO, erroBanco,
-  abrirFolha, fecharFolha, mostrarErro, toast
+  abrirFolha, fecharFolha, mostrarErro, toast, opcoesOrigem, origemParaLinha
 } from './util.js';
 import { GRUPOS } from './cadastros.js';
 
@@ -29,12 +29,13 @@ const ddmm = (iso) => dataBR(iso).slice(0, 5);
 const SETA_VOLTAR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
 
 async function carregarApoio(lar) {
-  const [c1, c2] = await Promise.all([
+  const [c1, c2, c3] = await Promise.all([
     supabase.from('categorias').select('id, nome, tipo, grupo, ativa, ordem').eq('lar_id', lar.id).eq('tipo', 'saida').order('ordem').order('nome'),
-    supabase.from('v_saldo_contas').select('id, nome, natureza, ativa, data_saldo_inicial').eq('lar_id', lar.id).order('ordem').order('nome')
+    supabase.from('v_saldo_contas').select('id, nome, natureza, ativa, data_saldo_inicial').eq('lar_id', lar.id).order('ordem').order('nome'),
+    supabase.from('v_saldo_clientes').select('id, nome, saldo').eq('lar_id', lar.id).order('nome')
   ]);
-  for (const r of [c1, c2]) if (r.error) throw r.error;
-  return { categorias: c1.data, contas: c2.data };
+  for (const r of [c1, c2, c3]) if (r.error) throw r.error;
+  return { categorias: c1.data, contas: c2.data, clientes: c3.data };
 }
 
 function opcoesCategorias(categorias, selecionada) {
@@ -65,6 +66,8 @@ async function telaMes(ctx) {
   try {
     const g = await supabase.rpc('gerar_despesas_mes', { p_mes: comp });
     if (g.error) throw g.error;
+    const z = await supabase.rpc('sincronizar_dizimo', { p_mes: comp });
+    if (z.error) throw z.error;
     const [a, r] = await Promise.all([
       carregarApoio(lar),
       supabase.from('v_despesas').select('*').eq('lar_id', lar.id).eq('competencia', comp)
@@ -139,7 +142,7 @@ async function telaMes(ctx) {
       <button class="btn btn-primario" type="button" id="btnNovaConta">Conta a pagar</button>
       <a class="btn btn-secundario" href="#/contas/fixas">Despesas fixas</a>
     </div>
-    <p class="nota-etapa">Saídas rápidas (Pix e dinheiro do dia a dia) ficam na lista do Início. Pagar com o saldo de um cliente chega na Etapa 5.</p>`;
+    <p class="nota-etapa">Saídas rápidas (Pix e dinheiro do dia a dia) ficam na lista do Início. Para pagar com o saldo de um cliente, escolha o cliente em "Pagar".</p>`;
 
   ctx.el.querySelectorAll('[data-mes]').forEach((b) => b.addEventListener('click', () => {
     est.mes = proximoMes(est.mes, Number(b.dataset.mes));
@@ -196,6 +199,7 @@ function formNovaConta(ctx, apoio) {
 // Editar a conta do mês
 // ---------------------------------------------------------------------
 function formEditar(ctx, apoio, d) {
+  if (d.origem === 'dizimo') return formEditarDizimo(ctx, d);
   const ehFixa = !!d.despesa_fixa_id;
   const folha = abrirFolha('Editar conta', `
     <form class="form" novalidate>
@@ -260,6 +264,28 @@ function formEditar(ctx, apoio, d) {
   });
 }
 
+// O dízimo tem valor calculado: só o vencimento pode mudar.
+function formEditarDizimo(ctx, d) {
+  const folha = abrirFolha('Dízimo do mês', `
+    <form class="form" novalidate>
+      <div class="aviso aviso-ok">O valor (${esc(fmtMoeda(d.valor))}) é calculado sozinho: ${esc(ctx.lar.dizimo_percentual ?? 10)}% de Renda Empresa − Despesas da Empresa. Ele muda quando você lança ou corrige entradas e despesas da empresa.</div>
+      <div class="campo"><label for="zVenc">Vencimento</label><input id="zVenc" type="date" value="${esc(d.vencimento)}"></div>
+      <div class="acoes-form"><button class="btn btn-primario" type="submit">Salvar</button></div>
+    </form>`);
+  const form = folha.querySelector('form');
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const { error } = await supabase.rpc('editar_conta', {
+      p_id: d.id, p_descricao: d.descricao, p_categoria: d.categoria_id,
+      p_valor: d.valor, p_vencimento: form.querySelector('#zVenc').value, p_proximos: false
+    });
+    if (error) return mostrarErro(form, erroBanco(error));
+    fecharFolha();
+    toast('Vencimento do dízimo atualizado.');
+    telaMes(ctx);
+  });
+}
+
 // ---------------------------------------------------------------------
 // Pagar (em uma ou várias contas, total ou parcial)
 // ---------------------------------------------------------------------
@@ -269,7 +295,7 @@ async function formPagar(ctx, apoio, d) {
   if (error) { toast(erroBanco(error)); return; }
 
   const nomeConta = Object.fromEntries(apoio.contas.map((c) => [c.id, c.nome]));
-  const ativas = apoio.contas.filter((c) => c.ativa);
+  const nomeCliente = Object.fromEntries(apoio.clientes.map((c) => [c.id, c.nome]));
   const falta = Math.round((Number(d.valor) - Number(d.pago)) * 100) / 100;
   const linhas = falta > 0 ? [{ conta: '', valor: fmtNumero(falta) }] : [];
   let dataPag = hojeISO();
@@ -280,7 +306,8 @@ async function formPagar(ctx, apoio, d) {
   function desenhar() {
     const novo = linhas.reduce((s, l) => s + (parseMoeda(l.valor) || 0), 0);
     const restante = Math.round((falta - novo) * 100) / 100;
-    const opcoes = (sel) => ativas.map((c) => `<option value="${esc(c.id)}" ${sel === c.id ? 'selected' : ''}>${esc(c.nome)} (${esc(c.natureza)})</option>`).join('');
+    const opcoes = (sel) => opcoesOrigem(apoio.contas, apoio.clientes, sel);
+    const usaCliente = linhas.some((l) => (l.conta || '').startsWith('k:'));
 
     corpo.innerHTML = `
       <form class="form" novalidate>
@@ -295,7 +322,7 @@ async function formPagar(ctx, apoio, d) {
             <span class="rotulo-campo">Pagamentos feitos</span>
             ${pags.map((p) => `
               <div class="pag-feito">
-                <span>${esc(dataBR(p.data))} · ${esc(nomeConta[p.conta_id] || 'Cliente')}</span>
+                <span>${esc(dataBR(p.data))} · ${esc(p.conta_id ? nomeConta[p.conta_id] : `saldo ${nomeCliente[p.cliente_id] || 'cliente'}`)}</span>
                 <strong>${esc(fmtMoeda(p.valor))}</strong>
                 <button type="button" class="btn-icone" data-apagar="${esc(p.id)}" aria-label="Apagar este pagamento"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
               </div>`).join('')}
@@ -306,13 +333,14 @@ async function formPagar(ctx, apoio, d) {
             <span class="rotulo-campo">${pags.length ? 'Novo pagamento' : 'Como foi pago?'}</span>
             ${linhas.map((l, i) => `
               <div class="linha-pag" data-linha="${i}">
-                <select aria-label="Conta ${i + 1}"><option value="">Escolha a conta</option>${opcoes(l.conta)}</select>
+                <select aria-label="Origem ${i + 1}"><option value="">Escolha</option>${opcoes(l.conta)}</select>
                 <input aria-label="Valor ${i + 1}" inputmode="decimal" value="${esc(l.valor)}" placeholder="0,00">
                 ${linhas.length > 1 ? `<button type="button" class="btn-icone" data-remover="${i}" aria-label="Remover"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}
               </div>`).join('')}
             <button type="button" class="btn-link" id="btnDividir">+ dividir com outra conta</button>
             <small class="ajuda ${Math.abs(restante) < 0.005 ? 'ok' : restante < 0 ? 'neg' : ''}" id="ajudaPag">${
               Math.abs(restante) < 0.005 ? 'Quita a conta.' : restante > 0 ? `Pagamento parcial: depois ainda faltam ${fmtMoeda(restante)}.` : `Passou ${fmtMoeda(-restante)} do que falta.`}</small>
+            ${usaCliente ? '<small class="ajuda ok">A parte do cliente sai do saldo que ele tem com você: a renda já foi lançada, então não conta de novo no dízimo nem mexe nos bancos.</small>' : ''}
           </div>
           <div class="campo"><label for="pData">Data do pagamento</label><input id="pData" type="date" value="${esc(dataPag)}"></div>
           <button class="btn btn-primario" type="submit">${restante > 0.005 ? 'Registrar pagamento parcial' : 'Registrar pagamento'}</button>
@@ -335,7 +363,7 @@ async function formPagar(ctx, apoio, d) {
 
   function ligar() {
     const form = corpo.querySelector('form');
-    form.addEventListener('change', () => { ler(); });
+    form.addEventListener('change', (e) => { ler(); if (e.target.tagName === 'SELECT') desenhar(); });
     form.addEventListener('input', (e) => {
       ler();
       const novo = linhas.reduce((s, l) => s + (parseMoeda(l.valor) || 0), 0);
@@ -385,9 +413,13 @@ async function formPagar(ctx, apoio, d) {
       ev.preventDefault();
       ler();
       if (!dataPag) return mostrarErro(form, 'Informe a data do pagamento.');
-      if (linhas.some((l) => !l.conta)) return mostrarErro(form, 'Escolha a conta de cada parte.');
-      if (new Set(linhas.map((l) => l.conta)).size !== linhas.length) return mostrarErro(form, 'A mesma conta aparece duas vezes. Junte os valores numa linha só.');
-      const envio = linhas.map((l) => ({ conta_id: l.conta, valor: parseMoeda(l.valor) }));
+      if (linhas.some((l) => !l.conta)) return mostrarErro(form, 'Escolha de onde saiu cada parte.');
+      if (new Set(linhas.map((l) => l.conta)).size !== linhas.length) return mostrarErro(form, 'A mesma conta ou cliente aparece duas vezes. Junte os valores numa linha só.');
+      const envio = linhas.map((l) => ({ ...origemParaLinha(l.conta), valor: parseMoeda(l.valor) }));
+      for (const l of envio.filter((x) => x.cliente_id)) {
+        const k = apoio.clientes.find((c) => c.id === l.cliente_id);
+        if (k && l.valor > Number(k.saldo) + 0.005) return mostrarErro(form, `O saldo com ${k.nome} é ${fmtMoeda(k.saldo)} e não cobre ${fmtMoeda(l.valor)}.`);
+      }
       if (envio.some((l) => Number.isNaN(l.valor) || l.valor <= 0)) return mostrarErro(form, 'Informe o valor de cada parte.');
       const soma = Math.round(envio.reduce((s, l) => s + l.valor, 0) * 100) / 100;
       if (soma > falta + 0.005) return mostrarErro(form, `Passou do que falta pagar (${fmtMoeda(falta)}).`);

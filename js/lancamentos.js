@@ -4,7 +4,10 @@
 // (entrada, saída e transferência) com edição e exclusão.
 // =====================================================================
 import { supabase } from './supabase.js';
-import { esc, fmtMoeda, fmtNumero, parseMoeda, dataBR, hojeISO, erroBanco, mostrarErro, toast } from './util.js';
+import {
+  esc, fmtMoeda, fmtNumero, parseMoeda, dataBR, hojeISO, erroBanco, mostrarErro, toast,
+  opcoesOrigem, origemParaLinha, linhaParaOrigem
+} from './util.js';
 import { GRUPOS } from './cadastros.js';
 
 // ---------------------------------------------------------------------
@@ -42,13 +45,14 @@ function diaSemana(iso) {
 // Dados de apoio
 // ---------------------------------------------------------------------
 async function carregarBase(lar) {
-  const [c1, c2, c3] = await Promise.all([
+  const [c1, c2, c3, c4] = await Promise.all([
     supabase.from('categorias').select('id, nome, tipo, grupo, ativa, ordem').eq('lar_id', lar.id).order('ordem').order('nome'),
     supabase.from('clientes').select('id, nome, ativo').eq('lar_id', lar.id).order('nome'),
-    supabase.from('v_saldo_contas').select('*').eq('lar_id', lar.id).order('ordem').order('nome')
+    supabase.from('v_saldo_contas').select('*').eq('lar_id', lar.id).order('ordem').order('nome'),
+    supabase.from('v_saldo_clientes').select('*').eq('lar_id', lar.id).order('nome')
   ]);
-  for (const r of [c1, c2, c3]) if (r.error) throw r.error;
-  return { categorias: c1.data, clientes: c2.data, contas: c3.data };
+  for (const r of [c1, c2, c3, c4]) if (r.error) throw r.error;
+  return { categorias: c1.data, clientes: c2.data, contas: c3.data, saldosClientes: c4.data };
 }
 
 const ICONE = {
@@ -66,9 +70,12 @@ export async function renderInicio(ctx) {
 
   const f = `${lista.mes}-01`;
   const n = `${proximoMes(lista.mes)}-01`;
-  let base, ent, des, tra, mem;
+  let base, ent, des, tra, mem, diz, apagar;
   try {
-    [base, ent, des, tra, mem] = await Promise.all([
+    // Garante que o dízimo do mês está calculado antes de mostrar.
+    const sync = await supabase.rpc('sincronizar_dizimo', { p_mes: f });
+    if (sync.error) throw sync.error;
+    [base, ent, des, tra, mem, diz, apagar] = await Promise.all([
       carregarBase(lar),
       supabase.from('entradas')
         .select('*, categoria:categorias!entradas_categoria_fkey(nome, grupo), cliente:clientes!entradas_cliente_fkey(nome), conta:contas!entradas_conta_fkey(nome)')
@@ -79,15 +86,20 @@ export async function renderInicio(ctx) {
       supabase.from('transferencias')
         .select('*, origem:contas!transferencias_origem_fkey(nome), destino:contas!transferencias_destino_fkey(nome)')
         .eq('lar_id', lar.id).gte('data', f).lt('data', n),
-      supabase.from('membros').select('user_id, nome').eq('lar_id', lar.id)
+      supabase.from('membros').select('user_id, nome').eq('lar_id', lar.id),
+      supabase.rpc('dizimo_mes', { p_mes: f }),
+      supabase.from('v_despesas').select('id, descricao, vencimento, valor, falta, status, atrasada, origem')
+        .eq('lar_id', lar.id).eq('competencia', f).in('origem', ['fixa', 'conta', 'dizimo']).neq('status', 'pago')
+        .order('vencimento')
     ]);
-    for (const r of [ent, des, tra, mem]) if (r.error) throw r.error;
+    for (const r of [ent, des, tra, mem, diz, apagar]) if (r.error) throw r.error;
   } catch (e) {
     ctx.el.innerHTML = `<div class="aviso aviso-erro" role="alert">${esc(erroBanco(e))}</div>`;
     return;
   }
 
   const nomeConta = Object.fromEntries(base.contas.map((c) => [c.id, c.nome]));
+  const nomeCliente = Object.fromEntries(base.clientes.map((c) => [c.id, c.nome]));
   const corte = Object.fromEntries(base.contas.map((c) => [c.id, c.data_saldo_inicial]));
   // Lançamento com data igual ou anterior ao saldo inicial da conta não muda o saldo.
   const foraDoSaldo = (data, ids) => ids.some((id) => id && corte[id] && data <= corte[id]);
@@ -110,7 +122,10 @@ export async function renderInicio(ctx) {
       situacao,
       tipo: 's', id: d.id, data: d.vencimento, valor: Number(d.valor), contas, fora: foraDoSaldo(d.vencimento, contas),
       titulo: d.descricao,
-      sub: [d.categoria?.nome, contas.map((c) => nomeConta[c]).join(' + ')].filter(Boolean).join(' · ') + quem(d.criado_por),
+      sub: [d.categoria?.nome, [
+        ...contas.map((c) => nomeConta[c]),
+        ...(d.pagamentos || []).filter((p) => p.cliente_id).map((p) => `saldo ${nomeCliente[p.cliente_id] || 'cliente'}`)
+      ].join(' + ')].filter(Boolean).join(' · ') + quem(d.criado_por),
       criado: d.criado_em
     });
   });
@@ -128,6 +143,10 @@ export async function renderInicio(ctx) {
 
   const contasAtivas = base.contas.filter((c) => c.ativa);
   const totalContas = contasAtivas.reduce((s, c) => s + Number(c.saldo_atual), 0);
+  const clientesSaldo = base.saldosClientes.filter((k) => Math.abs(Number(k.saldo)) >= 0.005);
+  const totalClientes = clientesSaldo.reduce((s, k) => s + Number(k.saldo), 0);
+  const dz = diz.data;
+  const atrasadas = apagar.data.filter((d) => d.atrasada);
 
   // filtros
   const busca = lista.busca.trim().toLowerCase();
@@ -156,8 +175,9 @@ export async function renderInicio(ctx) {
 
     <section class="painel-mes">
       <div class="painel-saldo">
-        <span>Saldo agora em todas as contas</span>
-        <strong>${esc(fmtMoeda(totalContas))}</strong>
+        <span>${totalClientes ? 'Total: contas + dinheiro com clientes' : 'Saldo agora em todas as contas'}</span>
+        <strong>${esc(fmtMoeda(totalContas + totalClientes))}</strong>
+        ${totalClientes ? `<small>Nas contas ${esc(fmtMoeda(totalContas))} · com clientes ${esc(fmtMoeda(totalClientes))}</small>` : ''}
       </div>
       <div class="painel-grade">
         <div><span>Entradas do mês</span><strong>${esc(fmtMoeda(totEnt))}</strong></div>
@@ -168,6 +188,18 @@ export async function renderInicio(ctx) {
         ${rendaEmpresa ? `<span>· Renda Empresa ${esc(fmtMoeda(rendaEmpresa))}</span>` : ''}
       </div>
     </section>
+
+    ${cardDizimo(dz)}
+    ${cardAPagar(apagar.data, atrasadas)}
+    ${clientesSaldo.length ? `
+      <a class="cartao card-link card-clientes" href="#/receber">
+        <span class="item-texto">
+          <span class="card-rotulo">Dinheiro seu com clientes</span>
+          <strong>${esc(fmtMoeda(totalClientes))}</strong>
+          <small>${esc(clientesSaldo.map((k) => `${k.nome} ${fmtMoeda(k.saldo)}`).join(' · '))}</small>
+        </span>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </a>` : ''}
 
     ${contasAtivas.length ? `
       <details class="cartao saldos">
@@ -208,7 +240,7 @@ export async function renderInicio(ctx) {
         <p>${itens.length ? 'Mude o filtro ou a busca.' : 'Toque no botão + para lançar entradas, saídas e transferências.'}</p>
       </section>`}
 
-    <p class="nota-etapa">Saídas do mês incluem as contas do mês, pagas ou não. O saldo das contas só muda quando a conta é paga. Dízimo e dinheiro com clientes entram nesta tela na Etapa 5.</p>`;
+    <p class="nota-etapa">Saídas do mês incluem as contas do mês, pagas ou não. O saldo das contas só muda quando a conta é paga.</p>`;
 
   ctx.el.querySelectorAll('[data-mes]').forEach((b) => b.addEventListener('click', () => {
     lista.mes = proximoMes(lista.mes, Number(b.dataset.mes));
@@ -229,6 +261,60 @@ export async function renderInicio(ctx) {
       if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
     }, 300);
   });
+}
+
+// ---------------------------------------------------------------------
+// Cartões do Início
+// ---------------------------------------------------------------------
+function cardDizimo(dz) {
+  if (!dz || !dz.ativo) return '';
+  const pct = Number(dz.percentual).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  const d = dz.despesa;
+  let selo = '<span class="item-tag tag-cinza">Sem dízimo no mês</span>';
+  let extra = '';
+  if (d) {
+    if (d.status === 'pago') selo = '<span class="item-tag tag-verde">Pago</span>';
+    else if (d.status === 'parcial') {
+      selo = '<span class="item-tag tag-ambar">Diferença a pagar</span>';
+      extra = `<p class="dizimo-dif">Já pago ${esc(fmtMoeda(d.pago))}. A base subiu depois do pagamento: falta ${esc(fmtMoeda(d.falta))}.</p>`;
+    } else selo = `<span class="item-tag tag-ambar">A pagar até ${esc(dataBR(d.vencimento).slice(0, 5))}</span>`;
+    if (Number(d.pago) > Number(dz.valor) + 0.005) {
+      extra = `<p class="dizimo-dif">Foi pago ${esc(fmtMoeda(d.pago - dz.valor))} a mais do que o cálculo atual.</p>`;
+    }
+  }
+  return `
+    <section class="cartao card-dizimo">
+      <div class="lista-cab sem-pad"><h2 class="lista-titulo sem-pad">Dízimo do mês</h2>${selo}</div>
+      <div class="dizimo-conta">
+        <div><span>Renda Empresa</span><span>${esc(fmtMoeda(dz.renda))}</span></div>
+        <div><span>− Despesas da Empresa</span><span>${esc(fmtMoeda(dz.despesas_empresa))}</span></div>
+        <div class="base"><span>Base</span><span>${esc(fmtMoeda(dz.base))}</span></div>
+      </div>
+      <div class="dizimo-valor"><span>${pct}% do mês</span><strong>${esc(fmtMoeda(dz.valor))}</strong></div>
+      ${extra}
+      ${d && d.status !== 'pago' ? `<a class="btn btn-secundario" href="#/contas/m/${lista.mes}">Pagar em Contas</a>` : ''}
+    </section>`;
+}
+
+function cardAPagar(abertas, atrasadas) {
+  if (!abertas.length) return '';
+  const total = abertas.reduce((s, d) => s + Number(d.falta), 0);
+  return `
+    <section class="cartao lista">
+      <div class="lista-cab">
+        <h2 class="lista-titulo">A pagar no mês</h2>
+        <span class="item-tag ${atrasadas.length ? 'tag-vermelho' : 'tag-cinza'}">${atrasadas.length ? `${atrasadas.length} atrasada${atrasadas.length > 1 ? 's' : ''}` : esc(fmtMoeda(total))}</span>
+      </div>
+      ${abertas.slice(0, 4).map((d) => `
+        <a class="item" href="#/contas/m/${lista.mes}">
+          <span class="item-texto">
+            <strong>${esc(d.descricao)}</strong>
+            <small class="${d.atrasada ? 'neg' : ''}">${d.atrasada ? 'Venceu' : 'Vence'} ${esc(dataBR(d.vencimento).slice(0, 5))}${d.status === 'parcial' ? ' · parcial' : ''}</small>
+          </span>
+          <span class="item-valor">${esc(fmtMoeda(d.falta))}</span>
+        </a>`).join('')}
+      ${abertas.length > 4 ? `<a class="item ver-todas" href="#/contas/m/${lista.mes}">Ver todas as ${abertas.length} contas · ${esc(fmtMoeda(total))}</a>` : ''}
+    </section>`;
 }
 
 // =====================================================================
@@ -280,12 +366,12 @@ export async function renderLancar(ctx, tipoRota, id) {
     de: reg?.conta_origem || '',
     para: reg?.conta_destino || '',
     linhas: reg && tipoRota === 's'
-      ? reg.pagamentos.filter((p) => p.conta_id).map((p) => ({ conta: p.conta_id, valor: fmtNumero(p.valor) }))
+      ? reg.pagamentos.map((p) => ({ conta: linhaParaOrigem(p), valor: fmtNumero(p.valor) }))
       : [{ conta: '', valor: '' }],
     linha0Manual: !!(reg && tipoRota === 's' && reg.pagamentos.length > 1)
   };
 
-  const usadas = new Set([st.categoria, st.cliente, st.onde, st.de, st.para, ...st.linhas.map((l) => l.conta)]);
+  const usadas = new Set([st.categoria, st.cliente, st.onde, st.de, st.para, ...st.linhas.map((l) => (l.conta || '').slice(2))]);
   const contasOk = base.contas.filter((c) => c.ativa || usadas.has(c.id));
   const clientesOk = base.clientes.filter((c) => c.ativo || usadas.has(c.id));
   const cats = (tipo) => base.categorias.filter((c) => c.tipo === tipo && (c.ativa || usadas.has(c.id)));
@@ -368,15 +454,16 @@ export async function renderLancar(ctx, tipoRota, id) {
             <div class="campo"><label for="fDescricao">Descrição</label><input id="fDescricao" value="${esc(st.descricao)}" placeholder="Ex.: Mercado, Pix presente"></div>
             <div class="campo"><label for="fCategoria">Categoria</label><select id="fCategoria">${opcoesCategorias('saida')}</select></div>
             <div class="campo">
-              <span class="rotulo-campo">Saiu de qual conta?</span>
+              <span class="rotulo-campo">De onde saiu o dinheiro?</span>
               ${st.linhas.map((l, i) => `
                 <div class="linha-pag" data-linha="${i}">
-                  <select aria-label="Conta ${i + 1}"><option value="">Escolha a conta</option>${opcoesContas(l.conta)}</select>
+                  <select aria-label="Origem ${i + 1}"><option value="">Escolha</option>${opcoesOrigem(base.contas, base.saldosClientes, l.conta)}</select>
                   <input aria-label="Valor da conta ${i + 1}" inputmode="decimal" placeholder="0,00" value="${esc(l.valor)}" ${st.linhas.length === 1 ? 'readonly' : ''}>
                   ${st.linhas.length > 1 ? `<button type="button" class="btn-icone" data-remover="${i}" aria-label="Remover esta conta"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}
                 </div>`).join('')}
               <button type="button" class="btn-link" id="btnDividir">+ dividir com outra conta</button>
               <small class="ajuda" id="ajudaLinhas"></small>
+              <small class="ajuda ok" id="ajudaCliente"></small>
             </div>
           ` : ''}
 
@@ -434,12 +521,19 @@ export async function renderLancar(ctx, tipoRota, id) {
       } else aj.textContent = '';
     }
     // aviso de data anterior ao saldo inicial
-    const ids = st.tipo === 'entrada' ? [st.onde] : st.tipo === 'saida' ? st.linhas.map((l) => l.conta) : [st.de, st.para];
+    const ids = st.tipo === 'entrada' ? [st.onde] : st.tipo === 'saida' ? st.linhas.map((l) => (l.conta || '').startsWith('c:') ? l.conta.slice(2) : '') : [st.de, st.para];
     const antigas = base.contas.filter((c) => ids.includes(c.id) && st.data && st.data <= c.data_saldo_inicial);
     const ac = ctx.el.querySelector('#ajudaCorte');
     if (ac) {
       ac.textContent = antigas.length
         ? `A data é igual ou anterior ao saldo inicial de ${antigas.map((c) => c.nome).join(', ')} (${dataBR(antigas[0].data_saldo_inicial)}). O lançamento entra no mês, mas não muda o saldo dessa conta.`
+        : '';
+    }
+    const ak = ctx.el.querySelector('#ajudaCliente');
+    if (ak) {
+      const cli = st.tipo === 'saida' ? st.linhas.filter((l) => (l.conta || '').startsWith('k:')) : [];
+      ak.textContent = cli.length
+        ? 'Sai do saldo que o cliente tem com você. Essa renda já foi lançada, então não conta de novo no dízimo nem mexe nos bancos.'
         : '';
     }
     const ao = ctx.el.querySelector('#ajudaOnde');
@@ -498,7 +592,7 @@ export async function renderLancar(ctx, tipoRota, id) {
     let erro = null;
 
     // Data igual ou anterior ao saldo inicial: pede confirmação para não confundir.
-    const idsContas = st.tipo === 'entrada' ? [st.onde] : st.tipo === 'saida' ? st.linhas.map((l) => l.conta) : [st.de, st.para];
+    const idsContas = st.tipo === 'entrada' ? [st.onde] : st.tipo === 'saida' ? st.linhas.map((l) => (l.conta || '').startsWith('c:') ? l.conta.slice(2) : '') : [st.de, st.para];
     const antigas = base.contas.filter((c) => idsContas.includes(c.id) && st.data <= c.data_saldo_inicial);
     if (antigas.length) {
       const nomes = antigas.map((c) => `${c.nome} (saldo inicial em ${dataBR(c.data_saldo_inicial)})`).join(', ');
@@ -522,11 +616,11 @@ export async function renderLancar(ctx, tipoRota, id) {
         : await supabase.from('entradas').insert(r));
     } else if (st.tipo === 'saida') {
       if (!st.categoria) return mostrarErro(form, 'Escolha a categoria.');
-      if (st.linhas.some((l) => !l.conta)) return mostrarErro(form, 'Escolha a conta de onde saiu o dinheiro.');
-      if (new Set(st.linhas.map((l) => l.conta)).size !== st.linhas.length) return mostrarErro(form, 'A mesma conta aparece duas vezes. Junte os valores numa linha só.');
+      if (st.linhas.some((l) => !l.conta)) return mostrarErro(form, 'Escolha de onde saiu o dinheiro.');
+      if (new Set(st.linhas.map((l) => l.conta)).size !== st.linhas.length) return mostrarErro(form, 'A mesma conta ou cliente aparece duas vezes. Junte os valores numa linha só.');
       const linhas = st.linhas.length === 1
-        ? [{ conta_id: st.linhas[0].conta, valor }]
-        : st.linhas.map((l) => ({ conta_id: l.conta, valor: parseMoeda(l.valor) }));
+        ? [{ ...origemParaLinha(st.linhas[0].conta), valor }]
+        : st.linhas.map((l) => ({ ...origemParaLinha(l.conta), valor: parseMoeda(l.valor) }));
       if (linhas.some((l) => Number.isNaN(l.valor) || l.valor <= 0)) return mostrarErro(form, 'Informe o valor de cada conta.');
       const soma = Math.round(linhas.reduce((s, l) => s + l.valor, 0) * 100) / 100;
       if (Math.abs(soma - valor) >= 0.005) return mostrarErro(form, `A soma das contas (${fmtMoeda(soma)}) precisa ser igual ao valor (${fmtMoeda(valor)}).`);

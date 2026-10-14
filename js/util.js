@@ -130,3 +130,30 @@ export function mensagemConvite({ nome, lar, email }) {
     `3. Confirme pelo link que vai chegar no seu e-mail e entre no app.\n\n` +
     `No celular, dá para instalar o app pela opção "Adicionar à tela de início".`;
 }
+
+// ---------------------------------------------------------------------
+// Origem de um pagamento: uma conta ("c:<id>") ou o saldo de um cliente ("k:<id>").
+// ---------------------------------------------------------------------
+export function opcoesOrigem(contas, clientes, selecionado) {
+  const ativas = contas.filter((c) => c.ativa || `c:${c.id}` === selecionado);
+  const comSaldo = (clientes || []).filter((k) => Number(k.saldo) > 0.005 || `k:${k.id}` === selecionado);
+  return `
+    <optgroup label="Minhas contas">
+      ${ativas.map((c) => `<option value="c:${esc(c.id)}" ${selecionado === `c:${c.id}` ? 'selected' : ''}>${esc(c.nome)} (${esc(c.natureza)})</option>`).join('')}
+    </optgroup>
+    ${comSaldo.length ? `
+    <optgroup label="Saldo com cliente">
+      ${comSaldo.map((k) => `<option value="k:${esc(k.id)}" ${selecionado === `k:${k.id}` ? 'selected' : ''}>${esc(k.nome)} · tem ${esc(fmtMoeda(k.saldo))}</option>`).join('')}
+    </optgroup>` : ''}`;
+}
+
+// "c:<id>" → { conta_id } ; "k:<id>" → { cliente_id }
+export function origemParaLinha(valor) {
+  if (!valor) return {};
+  const [t, id] = valor.split(':');
+  return t === 'k' ? { cliente_id: id } : { conta_id: id };
+}
+
+export function linhaParaOrigem(p) {
+  return p.cliente_id ? `k:${p.cliente_id}` : p.conta_id ? `c:${p.conta_id}` : '';
+}

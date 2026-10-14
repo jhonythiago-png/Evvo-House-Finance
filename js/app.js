@@ -8,6 +8,7 @@ import { fecharFolha } from './util.js';
 import { renderCadastro, TITULOS_CADASTRO } from './cadastros.js';
 import { renderInicio, renderLancar } from './lancamentos.js';
 import { renderContas, TITULOS_CONTAS } from './contas.js';
+import { renderReceber } from './receber.js';
 
 const raiz = document.getElementById('app');
 
@@ -111,7 +112,8 @@ const TELAS = {
     nome: 'Relatórios',
     vazio: { titulo: 'Gráficos e relatórios', texto: 'Comparativos mensal e anual, gastos por grupo, renda por cliente, impressão e PDF.', etapa: 'Etapa 7' }
   },
-  mais: { nome: 'Mais' }
+  mais: { nome: 'Mais' },
+  receber: { nome: 'A receber de clientes' }
 };
 const ORDEM_NAV = ['inicio', 'contas', 'lancar', 'relatorios', 'mais'];
 
@@ -437,6 +439,8 @@ function renderTela() {
     renderLancar(criarCtx(conteudo), partes[1], partes[2]);
   } else if (atual === 'contas') {
     renderContas(criarCtx(conteudo), partes);
+  } else if (atual === 'receber') {
+    renderReceber(criarCtx(conteudo));
   } else if (atual === 'mais' && sub) {
     const ctx = {
       el: conteudo,

@@ -589,3 +589,5 @@ body.com-folha { overflow: hidden; }
 .ajuda.ok { color: var(--verde-escuro); font-weight: 600; }
 .ajuda.neg { color: var(--saida-texto); font-weight: 600; }
 #ajudaCorte:empty, #ajudaLinhas:empty, #ajudaOnde:empty { display: none; }
+
+.aviso-saldo { align-self: flex-start; margin-top: 4px; font-weight: 600; white-space: normal; }

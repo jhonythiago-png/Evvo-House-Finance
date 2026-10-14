@@ -60,22 +60,22 @@ function valorRadio(form, campo) {
 // Minhas contas
 // =====================================================================
 async function telaContas(ctx) {
-  const { data, error } = await supabase.from('contas').select('*')
+  const { data, error } = await supabase.from('v_saldo_contas').select('*')
     .eq('lar_id', ctx.lar.id).order('ordem').order('nome');
   if (error) throw error;
 
   const ativas = data.filter((c) => c.ativa);
   const inativas = data.filter((c) => !c.ativa);
-  const total = ativas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
+  const total = ativas.reduce((s, c) => s + Number(c.saldo_atual), 0);
 
   const item = (c) => `
     <button class="item" type="button" data-id="${esc(c.id)}">
       <span class="item-tag tag-${c.natureza === 'PJ' ? 'azul' : 'verde'}">${esc(c.natureza)}</span>
       <span class="item-texto">
         <strong>${esc(c.nome)}</strong>
-        <small>${c.tipo === 'dinheiro' ? 'Dinheiro' : 'Banco'} · saldo em ${esc(dataBR(c.data_saldo_inicial))}</small>
+        <small>${c.tipo === 'dinheiro' ? 'Dinheiro' : 'Banco'} · inicial ${esc(fmtMoeda(c.saldo_inicial))} em ${esc(dataBR(c.data_saldo_inicial))}</small>
       </span>
-      <span class="item-valor ${Number(c.saldo_inicial) < 0 ? 'neg' : ''}">${esc(fmtMoeda(c.saldo_inicial))}</span>
+      <span class="item-valor ${Number(c.saldo_atual) < 0 ? 'neg' : ''}">${esc(fmtMoeda(c.saldo_atual))}</span>
       ${ICONE_SETA}
     </button>`;
 
@@ -90,7 +90,7 @@ async function telaContas(ctx) {
     <p class="intro">Cadastre onde o dinheiro fica e o saldo real de cada conta em um dia de corte. A partir dele o app calcula tudo sozinho.</p>
     ${data.length ? `
       <section class="cartao resumo-linha">
-        <span>Soma dos saldos iniciais</span>
+        <span>Saldo agora em todas as contas</span>
         <strong class="${total < 0 ? 'neg' : ''}">${esc(fmtMoeda(total))}</strong>
       </section>` : ''}
     ${bloco('Pessoa física', ativas.filter((c) => c.natureza === 'PF'))}
@@ -113,9 +113,9 @@ function formConta(ctx, c) {
       <div class="campo">
         <label for="cSaldo">Saldo inicial (R$)</label>
         <input id="cSaldo" inputmode="decimal" value="${c ? esc(fmtNumero(c.saldo_inicial)) : ''}" placeholder="0,00">
-        <small class="ajuda">Use o sinal de menos para saldo negativo, como cheque especial: -2.478,41</small>
+        <small class="ajuda">Use o sinal de menos para saldo negativo, como cheque especial: -2.478,41. Lançamentos com data depois deste dia mudam o saldo.</small>
       </div>
-      <div class="campo"><label for="cData">Saldo do dia</label><input id="cData" type="date" value="${esc(c?.data_saldo_inicial || hojeISO())}"></div>
+      <div class="campo"><label for="cData">Saldo no fim do dia</label><input id="cData" type="date" value="${esc(c?.data_saldo_inicial || hojeISO())}"></div>
       ${nova ? '' : `<label class="check"><input type="checkbox" id="cAtiva" ${c.ativa ? 'checked' : ''}><span>Conta ativa</span></label>`}
       <div class="acoes-form">
         <button class="btn btn-primario" type="submit">Salvar</button>

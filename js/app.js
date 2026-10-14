@@ -5,6 +5,7 @@
 import { supabase, enderecoDoApp } from './supabase.js';
 import { APP_VERSAO } from './config.js';
 import { renderCadastro, TITULOS_CADASTRO } from './cadastros.js';
+import { renderInicio, renderLancar } from './lancamentos.js';
 
 const raiz = document.getElementById('app');
 
@@ -359,7 +360,7 @@ function rotaAtual() {
   const partes = window.location.hash.replace(/^#\/?/, '').split('/');
   const tela = TELAS[partes[0]] ? partes[0] : 'inicio';
   const sub = tela === 'mais' && TITULOS_CADASTRO[partes[1]] ? partes[1] : '';
-  return { tela, sub };
+  return { tela, sub, partes };
 }
 
 function telaAtual() {
@@ -412,8 +413,9 @@ function renderApp() {
 }
 
 function renderTela() {
-  const { tela: atual, sub } = rotaAtual();
-  const titulo = sub ? TITULOS_CADASTRO[sub] : TELAS[atual].nome;
+  const { tela: atual, sub, partes } = rotaAtual();
+  const editandoLanc = atual === 'lancar' && partes[2];
+  const titulo = sub ? TITULOS_CADASTRO[sub] : (editandoLanc ? 'Editar lançamento' : TELAS[atual].nome);
   document.getElementById('tituloTela').textContent = titulo;
   document.title = titulo + ' · Evvo House Finance';
   document.querySelectorAll('.nav a').forEach((a) => {
@@ -422,7 +424,11 @@ function renderTela() {
   });
 
   const conteudo = document.getElementById('conteudo');
-  if (atual === 'mais' && sub) {
+  if (atual === 'inicio') {
+    renderInicio(criarCtx(conteudo));
+  } else if (atual === 'lancar') {
+    renderLancar(criarCtx(conteudo), partes[1], partes[2]);
+  } else if (atual === 'mais' && sub) {
     const ctx = {
       el: conteudo,
       info: estado.info,
@@ -485,6 +491,20 @@ function telaMais() {
     </section>` : ''}
     <button class="btn btn-secundario" type="button" id="btnSair">Sair desta conta</button>
     <p style="text-align:center;color:var(--suave);font-size:12px;margin:4px 0 0">Evvo House Finance · versão ${esc(APP_VERSAO)}</p>`;
+}
+
+function criarCtx(el) {
+  const ctx = {
+    el,
+    info: estado.info,
+    lar: estado.info.lar,
+    recarregarInfo: async () => {
+      await recarregarInfo();
+      ctx.info = estado.info;
+      ctx.lar = estado.info.lar;
+    }
+  };
+  return ctx;
 }
 
 async function sair() {

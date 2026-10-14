@@ -420,6 +420,45 @@ function tabelaSimples(cabecalhos, linhas, rodape) {
     </table>`;
 }
 
+// Movimentos separados: entradas (renda) primeiro, depois saídas e, por último,
+// o que só muda dinheiro de lugar (transferências, recebimentos, ajustes).
+function separarMovimentos(mov) {
+  const porData = (a, b) => a.data.localeCompare(b.data) || (a.descricao || '').localeCompare(b.descricao || '');
+  return {
+    entradas: mov.filter((m) => m.tipo === 'Entrada').sort(porData),
+    saidas: mov.filter((m) => m.tipo === 'Saída').sort(porData),
+    outros: mov.filter((m) => !['Entrada', 'Saída'].includes(m.tipo)).sort(porData)
+  };
+}
+
+const nw = (t) => `<span class="nw">${t}</span>`;
+
+function secoesMovimentos(mov) {
+  const { entradas, saidas, outros } = separarMovimentos(mov);
+  const soma = (l) => l.reduce((s, m) => s + Math.abs(n(m.valor)), 0);
+  const pago = saidas.filter((m) => m.situacao === 'Pago');
+  const aberto = saidas.filter((m) => m.situacao !== 'Pago');
+  let html = '';
+
+  html += `<h2>Entradas (${entradas.length}) · ${esc(fmtMoeda(soma(entradas)))}</h2>`;
+  html += entradas.length ? tabelaSimples(['Data', 'Quem pagou / descrição', 'Categoria', 'Onde caiu', 'Valor'],
+    entradas.map((m) => [nw(esc(dataBR(m.data).slice(0, 5))), esc(m.descricao), esc(m.categoria || ''), esc(m.conta || ''), nw(esc(fmtMoeda(m.valor)))]),
+    ['', '', '', 'Total', nw(esc(fmtMoeda(soma(entradas))))]) : '<p>Nenhuma entrada no mês.</p>';
+
+  html += `<h2>Saídas (${saidas.length}) · ${esc(fmtMoeda(soma(saidas)))}</h2>`;
+  html += saidas.length ? tabelaSimples(['Data', 'Descrição', 'Categoria', 'Pago com', 'Situação', 'Valor'],
+    saidas.map((m) => [nw(esc(dataBR(m.data).slice(0, 5))), esc(m.descricao), esc(m.categoria || ''), esc(m.conta === '-' ? '' : (m.conta || '')), esc(m.situacao || ''), nw(esc(fmtMoeda(Math.abs(n(m.valor)))))]),
+    ['', '', '', '', `Pago ${nw(esc(fmtMoeda(soma(pago))))} · a pagar ${nw(esc(fmtMoeda(soma(aberto))))}`, nw(esc(fmtMoeda(soma(saidas))))]) : '<p>Nenhuma saída no mês.</p>';
+
+  if (outros.length) {
+    html += `<h2>Transferências, recebimentos e ajustes (${outros.length})</h2>`;
+    html += '<p class="imp-nota">Só mudam o dinheiro de lugar: não entram em entradas, saídas nem no dízimo.</p>';
+    html += tabelaSimples(['Data', 'Tipo', 'Descrição', 'Contas', 'Valor'],
+      outros.map((m) => [nw(esc(dataBR(m.data).slice(0, 5))), esc(m.tipo), esc(m.descricao), esc(m.conta || ''), nw(esc(fmtMoeda(m.valor)))]));
+  }
+  return html;
+}
+
 function htmlRelatorioMes(ctx, rel, diz, saldos, dataSaldo, t) {
   const mov = rel.movimentos || [];
   return `
@@ -451,9 +490,7 @@ function htmlRelatorioMes(ctx, rel, diz, saldos, dataSaldo, t) {
     </div>
     <h2>Saídas por categoria</h2>
     ${tabelaSimples(['Categoria', 'Grupo', 'Total'], t.catSaida.map((c) => [esc(c.nome), esc(GRUPOS[c.grupo]?.nome || ''), esc(fmtMoeda(c.total))]))}
-    <h2>Movimentos do mês (${mov.length})</h2>
-    ${tabelaSimples(['Data', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Situação'],
-      mov.map((m) => [esc(dataBR(m.data).slice(0, 5)), esc(m.tipo), esc(m.descricao), esc(m.categoria || ''), esc(m.conta || ''), esc(fmtMoeda(m.valor)), esc(m.situacao || '')]))}`;
+    ${secoesMovimentos(mov)}`;
 }
 
 function htmlRelatorioAno(ctx, atual, tot, catSaida, clientes) {
@@ -526,10 +563,21 @@ async function excelMes(ctx, rel, diz, saldos, dataSaldo, t) {
     [`Saldo das contas em ${dataBR(dataSaldo)}`],
     ...(saldos || []).map((c) => [c.nome, n(c.saldo)])
   ], [32, 18]), 'Resumo');
+  const sep = separarMovimentos(rel.movimentos || []);
   XLSX.utils.book_append_sheet(wb, folha(XLSX, [
-    ['Data', 'Tipo', 'Descrição', 'Categoria', 'Grupo', 'Conta / origem', 'Valor', 'Situação', 'Lançado por'],
-    ...(rel.movimentos || []).map((m) => [dataBR(m.data), m.tipo, m.descricao, m.categoria || '', GRUPOS[m.grupo]?.nome || '', m.conta || '', n(m.valor), m.situacao || '', m.quem || ''])
-  ], [11, 13, 34, 26, 20, 28, 14, 10, 16]), 'Movimentos');
+    ['Data', 'Quem pagou / descrição', 'Categoria', 'Grupo', 'Onde caiu', 'Valor', 'Lançado por'],
+    ...sep.entradas.map((m) => [dataBR(m.data), m.descricao, m.categoria || '', GRUPOS[m.grupo]?.nome || '', m.conta || '', n(m.valor), m.quem || ''])
+  ], [11, 32, 26, 20, 26, 14, 16]), 'Entradas');
+  XLSX.utils.book_append_sheet(wb, folha(XLSX, [
+    ['Data', 'Descrição', 'Categoria', 'Grupo', 'Pago com', 'Valor', 'Situação', 'Lançado por'],
+    ...sep.saidas.map((m) => [dataBR(m.data), m.descricao, m.categoria || '', GRUPOS[m.grupo]?.nome || '', m.conta === '-' ? '' : (m.conta || ''), Math.abs(n(m.valor)), m.situacao || '', m.quem || ''])
+  ], [11, 34, 26, 20, 28, 14, 10, 16]), 'Saídas');
+  if (sep.outros.length) {
+    XLSX.utils.book_append_sheet(wb, folha(XLSX, [
+      ['Data', 'Tipo', 'Descrição', 'Contas', 'Valor', 'Lançado por'],
+      ...sep.outros.map((m) => [dataBR(m.data), m.tipo, m.descricao, m.conta || '', n(m.valor), m.quem || ''])
+    ], [11, 14, 32, 30, 14, 16]), 'Transferências e ajustes');
+  }
   XLSX.utils.book_append_sheet(wb, folha(XLSX, [
     ['Categoria', 'Grupo', 'Tipo', 'Total'],
     ...(rel.categorias || []).map((c) => [c.nome, GRUPOS[c.grupo]?.nome || '', c.tipo === 'entrada' ? 'Entrada' : 'Saída', n(c.total)])

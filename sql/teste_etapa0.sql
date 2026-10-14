@@ -13,7 +13,7 @@ with novo as (
   returning id
 )
 insert into public.membros (lar_id, user_id, nome, papel)
-select novo.id, u.id, 'Karol', 'dono'
+select novo.id, u.id, 'Jhony Beraldo', 'dono'
 from novo, auth.users u
 where u.email = 'jhonythiago@gmail.com';
 

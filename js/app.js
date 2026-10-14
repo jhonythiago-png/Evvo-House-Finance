@@ -122,6 +122,10 @@ async function rotear() {
     return;
   }
 
+  // Se o Painel Master convidou este e-mail, liga a conta ao lar antes de verificar.
+  try { await supabase.rpc('aceitar_convites'); } catch (e) { /* segue mesmo sem convite */ }
+  if (minha !== rotaSeq) return;
+
   const { data, error } = await supabase.rpc('meu_lar');
   if (minha !== rotaSeq) return;
 
@@ -433,9 +437,9 @@ function telaMais() {
     </section>
     ${info.eh_super ? `
     <section class="cartao vazio">
-      <span class="selo">Chega na Etapa 1</span>
       <h2>Painel Master</h2>
-      <p>Você é super admin. O painel para liberar e bloquear lares fica disponível na próxima etapa.</p>
+      <p>Crie lares, envie convites, libere, bloqueie e estenda acessos.</p>
+      <a class="btn btn-primario" href="./master.html">Abrir Painel Master</a>
     </section>` : ''}
     <button class="btn btn-secundario" type="button" id="btnSair">Sair desta conta</button>
     <p style="text-align:center;color:var(--suave);font-size:12px;margin:4px 0 0">Evvo House Finance · versão ${esc(APP_VERSAO)}</p>`;

@@ -1,0 +1,171 @@
+/* =====================================================================
+   Evvo House Finance — Painel Master (Etapa 1)
+   Usa os tokens de app.css.
+   ===================================================================== */
+
+.m-topo {
+  background: var(--verde-escuro);
+  color: #FFFFFF;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 16px;
+}
+.m-topo-interno {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.m-topo .marca img { width: 40px; height: 40px; }
+.m-topo .marca-nome { font-size: 20px; }
+.m-topo .marca-sub { font-size: 13px; }
+.m-topo-acoes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.m-topo-acoes .email { font-size: 13px; color: #CFE3D8; margin-right: 6px; }
+.m-btn-claro {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #2C6A52;
+  background: transparent;
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.m-btn-claro:hover { background: #1B6B4D; }
+
+.m-conteudo {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 22px 20px calc(40px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* resumo */
+.m-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.m-kpi {
+  border-radius: var(--raio);
+  padding: 16px;
+  background: var(--superficie);
+  box-shadow: 0 1px 0 var(--linha);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.m-kpi span:first-child { font-size: 13px; color: var(--suave); }
+.m-kpi strong { font-family: var(--fonte-titulo); font-size: 28px; }
+.m-kpi.ambar { background: var(--ambar-claro); }
+.m-kpi.ambar span:first-child, .m-kpi.ambar strong { color: var(--ambar-texto); }
+.m-kpi.vermelho { background: var(--saida-claro); }
+.m-kpi.vermelho span:first-child, .m-kpi.vermelho strong { color: var(--saida-texto); }
+.m-kpi[aria-pressed="true"] { outline: 2px solid var(--verde); }
+
+/* barra de busca */
+.m-barra { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.m-barra .campo { flex: 1 1 220px; }
+.m-barra select, .m-form select {
+  min-height: 50px;
+  padding: 0 12px;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--superficie);
+  font-size: 15px;
+}
+.m-barra .campo-filtro { flex: 0 1 200px; }
+
+/* formulário e caixas */
+.m-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.m-form .campo select { width: 100%; }
+.m-form-acoes { display: flex; gap: 10px; flex-wrap: wrap; grid-column: 1 / -1; }
+.m-caixa-titulo { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.m-caixa-titulo h2 { font-size: 18px; }
+
+.m-convite pre {
+  margin: 0 0 12px;
+  white-space: pre-wrap;
+  font-family: var(--fonte-texto);
+  font-size: 14px;
+  line-height: 1.55;
+  background: var(--fundo);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+/* lista de lares */
+.m-lista { display: flex; flex-direction: column; gap: 10px; }
+.m-lar {
+  background: var(--superficie);
+  border-radius: var(--raio);
+  box-shadow: 0 1px 0 var(--linha);
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.m-lar-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.m-lar-cab h3 { font-size: 17px; }
+.m-lar-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 18px; font-size: 14px; }
+.m-lar-info div { display: flex; flex-direction: column; gap: 2px; }
+.m-lar-info span:first-child { font-size: 12px; color: var(--suave); }
+.m-lar-info select {
+  min-height: 38px; padding: 0 8px; border: 1px solid var(--borda); border-radius: 10px;
+  background: var(--superficie); font-size: 14px; max-width: 220px;
+}
+.m-lar-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.m-lar-acoes .btn { min-height: 40px; padding: 0 14px; font-size: 13px; border-radius: 10px; }
+.btn-perigo { background: var(--saida-claro); color: var(--saida-texto); }
+.btn-perigo:hover { background: #F6D3C3; }
+
+.chip {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.chip-ativo { background: var(--verde-claro); color: var(--verde-escuro); }
+.chip-teste { background: var(--ambar-claro); color: var(--ambar-texto); }
+.chip-vencido, .chip-bloqueado { background: var(--saida-claro); color: var(--saida-texto); }
+.chip-master { background: var(--azul-claro); color: var(--azul); }
+.chip-convite { background: var(--azul-claro); color: var(--azul); }
+
+.txt-alerta { color: var(--saida-texto); font-weight: 600; }
+.txt-atencao { color: var(--ambar-texto); font-weight: 600; }
+
+/* atividades */
+.m-atividades { display: flex; flex-direction: column; }
+.m-atv {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--linha);
+  font-size: 14px;
+}
+.m-atv:first-child { border-top: none; }
+.m-atv time { color: var(--suave); font-size: 13px; }
+.m-atv small { display: block; color: var(--suave); margin-top: 2px; }
+
+.m-vazio-lista { color: var(--suave); padding: 18px 4px; }
+
+@media (min-width: 900px) {
+  .m-lar { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) auto; align-items: center; }
+  .m-lar-acoes { justify-content: flex-end; }
+}

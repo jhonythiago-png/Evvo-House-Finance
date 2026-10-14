@@ -76,6 +76,7 @@ h1, h2, h3 { font-family: var(--fonte-titulo); margin: 0; letter-spacing: -0.3px
   align-items: center;
   justify-content: center;
   gap: 8px;
+  text-decoration: none;
 }
 .btn-primario { background: var(--verde); color: #FFFFFF; }
 .btn-primario:hover { background: var(--verde-escuro); }

@@ -714,3 +714,84 @@ body.com-folha { overflow: hidden; }
 }
 .checklist li.ok::before { content: '✓'; background: var(--verde-claro); color: var(--verde-escuro); }
 .checklist li.pendente::before { content: '!'; background: var(--ambar-claro); color: var(--ambar-texto); }
+
+/* =====================================================================
+   Etapa 7 — relatórios
+   ===================================================================== */
+.seg-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.txt-entrada { color: var(--verde-escuro); }
+.txt-saida { color: var(--saida-texto); }
+
+.rel-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.rel-card {
+  background: var(--superficie); border-radius: var(--raio); padding: 14px;
+  box-shadow: 0 1px 0 var(--linha); display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.rel-card span { font-size: 12px; color: var(--suave); }
+.rel-card strong { font-family: var(--fonte-titulo); font-size: 17px; overflow-wrap: anywhere; }
+.rel-card small { font-size: 12px; color: var(--suave); }
+.rel-card.ambar { background: var(--ambar-claro); box-shadow: none; }
+.rel-card.ambar span, .rel-card.ambar strong, .rel-card.ambar small { color: var(--ambar-texto); }
+
+.rel-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.rel-bloco { display: flex; flex-direction: column; gap: 12px; }
+.rel-bloco h3 { font-family: var(--fonte-titulo); font-size: 15px; margin: 0; }
+.grafico { position: relative; height: 240px; }
+.grafico.alto { height: 300px; }
+.rel-detalhe summary { cursor: pointer; color: var(--verde); font-weight: 600; font-size: 14px; min-height: 40px; display: flex; align-items: center; }
+.rel-detalhe[open] summary { margin-bottom: 10px; }
+
+.barra-linha { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.barra-cab { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.barra-cab span { min-width: 0; overflow-wrap: anywhere; }
+.barra-cab strong { white-space: nowrap; }
+.barra-cab small { color: var(--suave); font-weight: 500; }
+.barra-fundo { height: 8px; background: #EEF2EF; border-radius: 999px; overflow: hidden; }
+.barra { height: 8px; border-radius: 999px; }
+
+.saldo-linha.sem-borda { border-top: none; padding: 6px 0; }
+.saldo-linha.total { border-top: 1px solid var(--tinta); font-weight: 700; padding-top: 8px; }
+
+.tabela-rolagem { overflow-x: auto; margin: 0 -4px; }
+.tabela { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.tabela th { text-align: right; font-size: 12px; color: var(--suave); font-weight: 700; padding: 8px 6px; border-bottom: 1px solid var(--linha); }
+.tabela td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--linha); white-space: nowrap; }
+.tabela th:first-child, .tabela td:first-child { text-align: left; }
+.tabela tfoot td { font-weight: 700; border-bottom: none; border-top: 1.5px solid var(--tinta); }
+.tabela tr.apagado td { color: #A3B0A8; }
+
+@media (min-width: 900px) {
+  .rel-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rel-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rel-bloco.largo { grid-column: 1 / -1; }
+  .grafico { height: 280px; }
+  .grafico.alto { height: 340px; }
+}
+
+/* ---------- impressão ---------- */
+#impressao { display: none; }
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  body.imprimindo { background: #FFFFFF; }
+  body.imprimindo > *:not(#impressao) { display: none !important; }
+  body.imprimindo #impressao { display: block; color: #15201A; font-size: 11px; }
+  #impressao h1 { font-size: 18px; margin: 0; }
+  #impressao h2 { font-size: 13px; margin: 16px 0 6px; font-family: var(--fonte-titulo); }
+  .imp-topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #12503A; padding-bottom: 8px; margin-bottom: 12px; }
+  .imp-marca { display: flex; align-items: center; gap: 8px; }
+  .imp-marca div { display: flex; flex-direction: column; }
+  .imp-marca strong { font-family: var(--fonte-titulo); font-size: 14px; color: #12503A; }
+  .imp-titulo { text-align: right; display: flex; flex-direction: column; gap: 2px; }
+  .imp-titulo span, .imp-marca span { color: #4F5E56; }
+  .imp-resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 6px; }
+  .imp-resumo div { border: 1px solid #D5DDD7; border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; }
+  .imp-resumo span { color: #4F5E56; font-size: 10px; }
+  .imp-resumo strong { font-size: 13px; }
+  .imp-colunas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .imp-tabela { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .imp-tabela th { text-align: left; background: #E3EFE8; padding: 4px 6px; font-size: 10px; }
+  .imp-tabela td { padding: 3px 6px; border-bottom: 1px solid #E1E7E2; }
+  .imp-tabela td:last-child, .imp-tabela th:last-child { text-align: right; }
+  .imp-tabela tfoot td { font-weight: 700; border-top: 1px solid #15201A; border-bottom: none; }
+  .imp-tabela tr { break-inside: avoid; }
+}

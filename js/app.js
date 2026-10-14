@@ -10,6 +10,7 @@ import { renderInicio, renderLancar } from './lancamentos.js';
 import { renderContas, TITULOS_CONTAS } from './contas.js';
 import { renderReceber } from './receber.js';
 import { renderConferencia } from './conferencia.js';
+import { renderRelatorios } from './relatorios.js';
 
 const raiz = document.getElementById('app');
 
@@ -445,6 +446,8 @@ function renderTela() {
     renderReceber(criarCtx(conteudo));
   } else if (atual === 'conferir') {
     renderConferencia(criarCtx(conteudo));
+  } else if (atual === 'relatorios') {
+    renderRelatorios(criarCtx(conteudo));
   } else if (atual === 'mais' && sub) {
     const ctx = {
       el: conteudo,

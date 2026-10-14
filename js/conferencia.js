@@ -47,7 +47,7 @@ export async function renderConferencia(ctx) {
       supabase.rpc('saldos_em', { p_data: est.data }),
       supabase.from('ajustes').select('id, data, diferenca, saldo_calculado, saldo_informado, motivo, conta:contas!ajustes_conta_fkey(nome)')
         .eq('lar_id', lar.id).gte('data', comp).lt('data', prox).order('data', { ascending: false }),
-      supabase.from('conferencias').select('id, data, total_diferenca, itens, criado_por, criado_em')
+      supabase.from('conferencias').select('id, data, total_diferenca, itens, criado_por, criado_em, ajustes(id, diferenca)')
         .eq('lar_id', lar.id).gte('data', comp).lt('data', prox).order('criado_em', { ascending: false }),
       supabase.from('membros').select('user_id, nome').eq('lar_id', lar.id)
     ]);
@@ -123,14 +123,28 @@ export async function renderConferencia(ctx) {
     ${confs.length ? `
       <section class="cartao lista">
         <h2 class="lista-titulo">Conferências feitas</h2>
-        ${confs.map((c) => `
+        ${confs.map((c) => {
+          // Situação atual: considera só os ajustes que ainda existem.
+          const original = Number(c.total_diferenca);
+          const atual = (c.ajustes || []).reduce((s, a) => s + Number(a.diferenca), 0);
+          const bateu = Math.abs(original) < 0.005;
+          const desfeito = !bateu && !(c.ajustes || []).length;
+          const parcial = !bateu && !desfeito && Math.abs(atual - original) >= 0.005;
+          const tag = bateu ? ['tag-verde', 'Bateu'] : desfeito ? ['tag-cinza', 'Ajuste apagado'] : parcial ? ['tag-ambar', 'Ajuste parcial'] : ['tag-ambar', 'Ajustado'];
+          const txt = bateu ? 'tudo bateu'
+            : desfeito ? `diferença de ${fmtMoeda(original)} · o ajuste foi apagado`
+            : parcial ? `diferença de ${fmtMoeda(original)} · ajuste atual ${fmtMoeda(atual)}`
+            : `diferença de ${fmtMoeda(original)}`;
+          return `
           <div class="item item-fixo">
             <span class="item-texto">
               <strong>${esc(dataBR(c.data))} · ${c.itens.length} ${c.itens.length === 1 ? 'conta' : 'contas'}</strong>
-              <small>${esc(nomeQuem[c.criado_por] || '')} · ${Math.abs(Number(c.total_diferenca)) < 0.005 ? 'tudo bateu' : 'diferença de ' + esc(fmtMoeda(c.total_diferenca))}</small>
+              <small>${esc(nomeQuem[c.criado_por] || '')} · ${esc(txt)}</small>
             </span>
-            <span class="item-tag ${Math.abs(Number(c.total_diferenca)) < 0.005 ? 'tag-verde' : 'tag-ambar'}">${Math.abs(Number(c.total_diferenca)) < 0.005 ? 'Bateu' : 'Ajustado'}</span>
-          </div>`).join('')}
+            <span class="item-tag ${tag[0]}">${tag[1]}</span>
+            ${sit.fechado ? '' : `<button type="button" class="btn-icone" data-apagar-conf="${esc(c.id)}" aria-label="Apagar esta conferência"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`}
+          </div>`;
+        }).join('')}
       </section>` : ''}
 
     ${!sit.fechado && !futuro ? `
@@ -237,6 +251,18 @@ export async function renderConferencia(ctx) {
     const { error } = await supabase.from('ajustes').delete().eq('id', b.dataset.apagarAjuste);
     if (error) { toast(erroBanco(error)); return; }
     toast('Ajuste apagado.');
+    renderConferencia(ctx);
+  }));
+
+  ctx.el.querySelectorAll('[data-apagar-conf]').forEach((b) => b.addEventListener('click', async () => {
+    const c = confs.find((x) => x.id === b.dataset.apagarConf);
+    const comAjuste = (c.ajustes || []).length;
+    if (!confirm(comAjuste
+      ? 'Apagar esta conferência do histórico? Os ajustes dela também são apagados e os saldos voltam ao calculado pelo app.'
+      : 'Apagar esta conferência do histórico?')) return;
+    const { error } = await supabase.from('conferencias').delete().eq('id', c.id);
+    if (error) { toast(erroBanco(error)); return; }
+    toast('Conferência apagada.');
     renderConferencia(ctx);
   }));
 

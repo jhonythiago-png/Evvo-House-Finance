@@ -4,6 +4,7 @@
 // =====================================================================
 import { supabase, enderecoDoApp } from './supabase.js';
 import { APP_VERSAO } from './config.js';
+import { renderCadastro, TITULOS_CADASTRO } from './cadastros.js';
 
 const raiz = document.getElementById('app');
 
@@ -354,9 +355,24 @@ function renderErroServidor(erro) {
 // ---------------------------------------------------------------------
 // App logado
 // ---------------------------------------------------------------------
+function rotaAtual() {
+  const partes = window.location.hash.replace(/^#\/?/, '').split('/');
+  const tela = TELAS[partes[0]] ? partes[0] : 'inicio';
+  const sub = tela === 'mais' && TITULOS_CADASTRO[partes[1]] ? partes[1] : '';
+  return { tela, sub };
+}
+
 function telaAtual() {
-  const id = window.location.hash.replace(/^#\/?/, '');
-  return TELAS[id] ? id : 'inicio';
+  return rotaAtual().tela;
+}
+
+// Atualiza os dados do lar (nome, dízimo, nome da pessoa) sem recarregar a tela.
+async function recarregarInfo() {
+  const { data, error } = await supabase.rpc('meu_lar');
+  if (error || !data || !data.lar) return;
+  estado.info = data;
+  const el = document.querySelector('.topo-lar');
+  if (el) el.textContent = data.lar.nome;
 }
 
 function renderApp() {
@@ -396,16 +412,29 @@ function renderApp() {
 }
 
 function renderTela() {
-  const atual = telaAtual();
-  document.getElementById('tituloTela').textContent = TELAS[atual].nome;
-  document.title = TELAS[atual].nome + ' · Evvo House Finance';
+  const { tela: atual, sub } = rotaAtual();
+  const titulo = sub ? TITULOS_CADASTRO[sub] : TELAS[atual].nome;
+  document.getElementById('tituloTela').textContent = titulo;
+  document.title = titulo + ' · Evvo House Finance';
   document.querySelectorAll('.nav a').forEach((a) => {
     if (a.dataset.tela === atual) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
 
   const conteudo = document.getElementById('conteudo');
-  if (atual === 'mais') {
+  if (atual === 'mais' && sub) {
+    const ctx = {
+      el: conteudo,
+      info: estado.info,
+      lar: estado.info.lar,
+      recarregarInfo: async () => {
+        await recarregarInfo();
+        ctx.info = estado.info;
+        ctx.lar = estado.info.lar;
+      }
+    };
+    renderCadastro(sub, ctx);
+  } else if (atual === 'mais') {
     conteudo.innerHTML = telaMais();
     document.getElementById('btnSair').addEventListener('click', sair);
   } else {
@@ -435,6 +464,19 @@ function telaMais() {
         <div><span>Conta</span><span>${esc(info.email)}</span></div>
       </div>
     </section>
+    <nav class="cartao lista" aria-label="Cadastros">
+      ${[
+        ['contas', 'Minhas contas', 'Bancos, dinheiro e saldo inicial'],
+        ['clientes', 'Clientes', 'Quem paga a renda da empresa'],
+        ['categorias', 'Categorias', 'Grupos e regra do dízimo'],
+        ['pessoas', 'Pessoas da casa', 'Quem usa o app com você'],
+        ['lar', 'Dízimo e dados do lar', 'Nome do lar e percentual do dízimo']
+      ].map(([id, t, d]) => `
+        <a class="item" href="#/mais/${id}">
+          <span class="item-texto"><strong>${t}</strong><small>${d}</small></span>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </a>`).join('')}
+    </nav>
     ${info.eh_super ? `
     <section class="cartao vazio">
       <h2>Painel Master</h2>

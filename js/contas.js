@@ -66,8 +66,6 @@ async function telaMes(ctx) {
   try {
     const g = await supabase.rpc('gerar_despesas_mes', { p_mes: comp });
     if (g.error) throw g.error;
-    const z = await supabase.rpc('sincronizar_dizimo', { p_mes: comp });
-    if (z.error) throw z.error;
     const [a, r] = await Promise.all([
       carregarApoio(lar),
       supabase.from('v_despesas').select('*').eq('lar_id', lar.id).eq('competencia', comp)

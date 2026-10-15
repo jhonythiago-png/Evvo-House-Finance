@@ -73,9 +73,6 @@ export async function renderInicio(ctx) {
   const n = `${proximoMes(lista.mes)}-01`;
   let base, ent, des, tra, mem, diz, apagar, ajs, fech;
   try {
-    // Garante que o dízimo do mês está calculado antes de mostrar.
-    const sync = await supabase.rpc('sincronizar_dizimo', { p_mes: f });
-    if (sync.error) throw sync.error;
     [base, ent, des, tra, mem, diz, apagar, ajs, fech] = await Promise.all([
       carregarBase(lar),
       supabase.from('entradas')

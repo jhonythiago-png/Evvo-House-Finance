@@ -498,8 +498,9 @@ function telaMais() {
         ['categorias', 'Categorias', 'Grupos e regra do dízimo'],
         ['pessoas', 'Pessoas da casa', 'Quem usa o app com você'],
         ['lar', 'Dízimo e dados do lar', 'Nome do lar e percentual do dízimo'],
-        ['avisos', 'Avisos no WhatsApp', 'Lembrete das contas a vencer às 10h e 16h'],
-        ['#/conferir', 'Conferência e fechamento', 'Conferir saldos com o banco e fechar o mês']
+        ['avisos', 'Avisos no WhatsApp', 'Lembrete das contas a vencer nos horários que você escolher'],
+        ['#/conferir', 'Conferência e fechamento', 'Conferir saldos com o banco e fechar o mês'],
+        ['ajuda', 'Ajuda', 'Como usar o sistema, instalar e configurar o WhatsApp']
       ].map(([id, t, d]) => `
         <a class="item" href="${id.startsWith('#') ? id : '#/mais/' + id}">
           <span class="item-texto"><strong>${t}</strong><small>${d}</small></span>

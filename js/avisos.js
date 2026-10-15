@@ -27,19 +27,23 @@ export async function telaAvisos(ctx) {
     return;
   }
 
-  const [r1, r2, r3] = await Promise.all([
+  const [r1, r2, r3, r4] = await Promise.all([
     supabase.from('avisos_destinatarios').select('id, nome, telefone, ativo').eq('lar_id', ctx.lar.id).order('nome'),
     supabase.rpc('historico_avisos'),
-    supabase.rpc('previa_aviso_whatsapp')
+    supabase.rpc('previa_aviso_whatsapp'),
+    supabase.rpc('horarios_avisos')
   ]);
-  for (const r of [r1, r2, r3]) if (r.error) throw r.error;
+  for (const r of [r1, r2, r3, r4]) if (r.error) throw r.error;
   const pessoas = r1.data;
   const historico = r2.data || [];
   const previa = r3.data;
+  const horarios = r4.data || ['10:00', '16:00'];
+  const textoHorarios = horarios.map((h) => `<strong>${esc(h.replace(':00', 'h').replace(':', 'h'))}</strong>`)
+    .join(horarios.length === 2 ? ' e às ' : ', às ').replace(/, às ([^,]*)$/, ' e às $1');
 
   ctx.el.innerHTML = `
     ${VOLTAR}
-    <p class="intro">Todo dia às <strong>10h</strong> e às <strong>16h</strong>, quem estiver aqui recebe no WhatsApp as contas <strong>não pagas</strong> que vencem <strong>amanhã</strong> e <strong>hoje</strong>. Quando a conta é marcada como paga, ela sai dos lembretes.</p>
+    <p class="intro">Todo dia às ${textoHorarios}, quem estiver aqui recebe no WhatsApp as contas <strong>não pagas</strong> que vencem <strong>amanhã</strong> e <strong>hoje</strong>. Quando a conta é marcada como paga, ela sai dos lembretes.</p>
 
     <section class="cartao lista">
       <h2 class="lista-titulo">Quem recebe</h2>
@@ -54,6 +58,16 @@ export async function telaAvisos(ctx) {
         </div>`).join('') : '<p class="lista-vazia">Ninguém cadastrado ainda.</p>'}
     </section>
     <button class="btn btn-primario btn-largo" type="button" id="btnAdd">Adicionar pessoa</button>
+
+    <section class="cartao horarios">
+      <div class="lista-cab sem-pad"><h2 class="lista-titulo sem-pad">Horários dos lembretes</h2><span class="item-tag tag-cinza">até 3 por dia</span></div>
+      <div id="listaHorarios" class="horarios-lista"></div>
+      <div class="acoes-form">
+        <button class="btn btn-secundario" type="button" id="btnMaisHorario">+ Adicionar horário</button>
+        <button class="btn btn-primario" type="button" id="btnSalvarHorarios">Salvar horários</button>
+      </div>
+      <small class="ajuda">Os lembretes saem no horário escolhido, de 15 em 15 minutos. Ex.: 07:30, 12:00, 18:45.</small>
+    </section>
 
     <section class="cartao">
       <h2 class="lista-titulo sem-pad" style="margin-bottom:8px">Mensagem de agora</h2>
@@ -72,7 +86,7 @@ export async function telaAvisos(ctx) {
           <div class="item item-fixo">
             <span class="item-texto">
               <strong>${esc(h.nome || 'Removido')}</strong>
-              <small>${esc(quando(h.quando))} · ${h.periodo === 'manha' ? 'manhã' : h.periodo === 'tarde' ? 'tarde' : 'teste'}</small>
+              <small>${esc(quando(h.quando))} · ${h.periodo === 'manha' ? 'lembrete 10h' : h.periodo === 'tarde' ? 'lembrete 16h' : h.periodo === 'teste' ? 'teste' : 'lembrete ' + esc(h.periodo)}</small>
             </span>
             <span class="item-tag ${ok ? 'tag-verde' : pendente ? 'tag-cinza' : 'tag-vermelho'}">${ok ? 'Enviado' : pendente ? 'Na fila' : 'Falhou'}</span>
           </div>`;
@@ -87,7 +101,38 @@ export async function telaAvisos(ctx) {
         <li>Você recebe de volta uma mensagem com a sua <strong>apikey</strong>. É ela que vai no cadastro aqui.</li>
       </ol>
       <p>Se for o mesmo celular que já recebe os avisos do LSR, a chave é a mesma. Cada pessoa precisa da própria chave, ligada ao próprio número.</p>
+      <p><a href="#/mais/ajuda/whatsapp">Ver o passo a passo completo na Ajuda</a></p>
     </details>`;
+
+  // ----- horários -----
+  const opcoesHora = [];
+  for (let h = 0; h < 24; h++) for (const m of ['00', '15', '30', '45']) opcoesHora.push(`${String(h).padStart(2, '0')}:${m}`);
+  let lista = [...horarios];
+  const caixa = ctx.el.querySelector('#listaHorarios');
+  function desenharHorarios() {
+    caixa.innerHTML = lista.map((h, i) => `
+      <div class="horario-linha">
+        <label class="sr-only" for="hor${i}">Horário ${i + 1}</label>
+        <select id="hor${i}" data-i="${i}">${opcoesHora.map((o) => `<option ${o === h ? 'selected' : ''}>${o}</option>`).join('')}</select>
+        ${lista.length > 1 ? `<button type="button" class="btn-icone" data-tirar="${i}" aria-label="Remover horário ${i + 1}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}
+      </div>`).join('');
+    caixa.querySelectorAll('select').forEach((s) => s.addEventListener('change', () => { lista[Number(s.dataset.i)] = s.value; }));
+    caixa.querySelectorAll('[data-tirar]').forEach((b) => b.addEventListener('click', () => { lista.splice(Number(b.dataset.tirar), 1); desenharHorarios(); }));
+    ctx.el.querySelector('#btnMaisHorario').disabled = lista.length >= 3;
+  }
+  desenharHorarios();
+  ctx.el.querySelector('#btnMaisHorario').addEventListener('click', () => {
+    if (lista.length >= 3) return;
+    lista.push(lista.includes('12:00') ? '18:00' : '12:00');
+    desenharHorarios();
+  });
+  ctx.el.querySelector('#btnSalvarHorarios').addEventListener('click', async () => {
+    if (new Set(lista).size !== lista.length) { toast('Há horários repetidos.'); return; }
+    const { error } = await supabase.rpc('salvar_horarios_avisos', { p_horarios: lista });
+    if (error) { toast(erroBanco(error)); return; }
+    toast('Horários salvos.');
+    telaAvisos(ctx).catch((e) => toast(erroBanco(e)));
+  });
 
   ctx.el.querySelector('#btnAdd').addEventListener('click', () => formPessoa(ctx, null));
   ctx.el.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () =>

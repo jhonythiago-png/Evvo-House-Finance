@@ -8,6 +8,7 @@ import {
   abrirFolha, fecharFolha, mostrarErro, toast, mensagemConvite
 } from './util.js';
 import { telaAvisos } from './avisos.js';
+import { telaAjuda } from './ajuda.js';
 
 export const TITULOS_CADASTRO = {
   contas: 'Minhas contas',
@@ -15,7 +16,8 @@ export const TITULOS_CADASTRO = {
   categorias: 'Categorias',
   pessoas: 'Pessoas da casa',
   lar: 'Dízimo e dados do lar',
-  avisos: 'Avisos no WhatsApp'
+  avisos: 'Avisos no WhatsApp',
+  ajuda: 'Ajuda'
 };
 
 export const GRUPOS = {
@@ -30,7 +32,7 @@ const ICONE_SETA = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 
 // ctx = { el, lar, info, recarregarInfo }
 export async function renderCadastro(qual, ctx) {
-  const telas = { contas: telaContas, clientes: telaClientes, categorias: telaCategorias, pessoas: telaPessoas, lar: telaLar, avisos: telaAvisos };
+  const telas = { contas: telaContas, clientes: telaClientes, categorias: telaCategorias, pessoas: telaPessoas, lar: telaLar, avisos: telaAvisos, ajuda: telaAjuda };
   const fn = telas[qual];
   if (!fn) { window.location.hash = '#/mais'; return; }
   ctx.el.innerHTML = `${voltar()}<div class="carregando-bloco">Carregando…</div>`;

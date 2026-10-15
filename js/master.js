@@ -461,7 +461,8 @@ async function iniciar() {
   const { data: ehSuper, error } = await supabase.rpc('is_super_admin');
   if (error) {
     telaSimples('Não foi possível abrir', esc(mensagemErro(error)),
-      '<button class="btn btn-primario" type="button" onclick="location.reload()">Tentar de novo</button>');
+      '<button class="btn btn-primario" type="button" id="btnRecarregar">Tentar de novo</button>');
+    document.getElementById('btnRecarregar').addEventListener('click', () => location.reload());
     return;
   }
   if (!ehSuper) {

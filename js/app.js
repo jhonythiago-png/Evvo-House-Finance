@@ -43,7 +43,7 @@ function traduzirErro(erro) {
   if (m.includes('invalid login credentials')) return 'E-mail ou senha incorretos.';
   if (m.includes('email not confirmed')) return 'Confirme seu e-mail pelo link que enviamos antes de entrar.';
   if (m.includes('user already registered')) return 'Este e-mail já tem conta. Use "Entrar".';
-  if (m.includes('password should be at least')) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (m.includes('password should be at least') || m.includes('weak password') || m.includes('password is known')) return 'Senha fraca. Use pelo menos 6 caracteres, misturando letras e números, e evite senhas comuns.';
   if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Digite um e-mail válido.';
   if (m.includes('rate limit') || m.includes('security purposes')) return 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.';
   if (m.includes('failed to fetch') || m.includes('network')) return 'Sem conexão com o servidor. Verifique a internet e tente de novo.';
@@ -216,7 +216,8 @@ function renderLogin() {
     const botao = document.getElementById('btnEnviar');
 
     if (!email) { mostrarAvisoLogin('erro', 'Digite seu e-mail.'); return; }
-    if (modo !== 'esqueci' && senha.length < 6) { mostrarAvisoLogin('erro', 'A senha precisa ter pelo menos 6 caracteres.'); return; }
+    if (modo === 'entrar' && !senha) { mostrarAvisoLogin('erro', 'Digite sua senha.'); return; }
+    if (modo === 'criar' && senha.length < 6) { mostrarAvisoLogin('erro', 'A senha precisa ter pelo menos 6 caracteres.'); return; }
     if (modo === 'criar' && senha !== senha2) { mostrarAvisoLogin('erro', 'As duas senhas não são iguais.'); return; }
 
     botao.disabled = true;
@@ -270,7 +271,7 @@ function renderNovaSenha(aviso) {
       <main class="acesso-corpo">
         <form class="cartao-acesso" id="formSenha" novalidate>
           <h1>Criar senha nova</h1>
-          <p class="texto">Escolha uma senha com pelo menos 6 caracteres.</p>
+          <p class="texto">Escolha uma senha com pelo menos 6 caracteres. Misturar letras e números deixa mais segura.</p>
           ${avisoHTML(aviso)}
           <div class="campo">
             <label for="nova1">Senha nova</label>

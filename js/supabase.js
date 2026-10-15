@@ -1,5 +1,7 @@
 // Evvo House Finance — conexão com o Supabase.
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
+// A biblioteca é carregada no HTML com verificação de integridade (SRI): se o arquivo
+// do CDN for alterado por alguém, o navegador se recusa a executar.
+const { createClient } = window.supabase;
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

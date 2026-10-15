@@ -18,12 +18,18 @@ const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'S
 // ---------------------------------------------------------------------
 // Utilidades
 // ---------------------------------------------------------------------
+// Integridade (SRI): o navegador só executa se o arquivo do CDN for exatamente este.
+const INTEGRIDADE = {
+  [CHART_JS]: 'sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD',
+  [XLSX_JS]: 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw'
+};
 const carregados = {};
 function carregarScript(url) {
   if (!carregados[url]) {
     carregados[url] = new Promise((ok, falha) => {
       const s = document.createElement('script');
       s.src = url;
+      if (INTEGRIDADE[url]) { s.integrity = INTEGRIDADE[url]; s.crossOrigin = 'anonymous'; }
       s.onload = ok;
       s.onerror = () => { delete carregados[url]; falha(new Error('Não foi possível carregar ' + url)); };
       document.head.appendChild(s);

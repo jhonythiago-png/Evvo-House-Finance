@@ -798,3 +798,8 @@ body.com-folha { overflow: hidden; }
   .imp-tabela tfoot td { white-space: nowrap; }
   .imp-nota { margin: 0 0 6px; color: #4F5E56; }
 }
+
+/* Avisos no WhatsApp */
+.ajuda-callmebot summary { cursor: pointer; font-weight: 600; color: var(--verde); min-height: 40px; display: flex; align-items: center; }
+.ajuda-callmebot ol { margin: 10px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; font-size: 14px; }
+.ajuda-callmebot p { margin: 0; font-size: 13px; color: var(--suave); line-height: 1.5; }

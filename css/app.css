@@ -828,3 +828,49 @@ body.com-folha { overflow: hidden; }
 .ajuda-corpo p { margin: 0 0 10px; }
 .ajuda-corpo ol, .ajuda-corpo ul { margin: 0 0 10px; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
 .ajuda-corpo code { background: var(--fundo); padding: 2px 6px; border-radius: 6px; font-size: 14px; overflow-wrap: anywhere; }
+
+/* =====================================================================
+   Busca em todos os meses e tabela do ano (realizado × previsto)
+   ===================================================================== */
+.busca-campo {
+  position: relative; display: flex; align-items: center;
+  background: var(--superficie); border: 1px solid var(--borda); border-radius: 16px;
+  min-height: 52px; padding: 0 6px 0 14px; gap: 10px; color: var(--suave);
+}
+.busca-campo.ativa { border: 1.5px solid var(--verde); }
+.busca-campo input {
+  flex: 1; min-width: 0; border: none; background: transparent; outline: none;
+  font-size: 16px; color: var(--tinta); min-height: 48px;
+}
+.busca-campo input::-webkit-search-cancel-button { display: none; }
+.filtros-linha.so-conta { grid-template-columns: minmax(0, 1fr); }
+.filtros-linha.com-escopo { grid-template-columns: minmax(0, 1fr) auto; }
+.escopo { display: flex; border: 1px solid var(--borda); border-radius: 14px; background: var(--superficie); padding: 3px; gap: 2px; }
+.escopo button {
+  min-height: 38px; padding: 0 14px; border: none; border-radius: 11px; background: transparent;
+  color: var(--suave); font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.escopo button.ativo { background: var(--verde); color: #FFFFFF; font-weight: 600; }
+.busca-escopo { margin: -4px 2px 0; font-size: 13px; color: var(--suave); }
+
+.busca-resumo { display: flex; flex-direction: column; gap: 8px; }
+.busca-rotulo { font-size: 13px; color: var(--suave); }
+.busca-linha { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.busca-linha div { display: flex; flex-direction: column; }
+.busca-linha strong { font-size: 16px; }
+.busca-linha small { font-size: 13px; color: var(--suave); }
+.busca-total { font-family: var(--fonte-titulo); font-size: 24px; font-weight: 700; white-space: nowrap; }
+.busca-mix { margin: 0; font-size: 13px; color: var(--suave); }
+.busca-pagos {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  border-top: 1px solid var(--linha); padding-top: 10px; font-size: 13px; color: var(--suave);
+}
+.busca-pagos strong { color: var(--tinta); font-weight: 600; }
+mark { background: #DCEFD6; color: inherit; border-radius: 4px; padding: 0 2px; }
+
+.tabela-ano tr.previsto td { color: #8D978F; background: #F7F8F4; }
+.tabela-ano tr.previsto td:first-child { color: #6B786F; }
+.tracos { color: #A3B0A8; }
+.tag-previsto { background: transparent; border: 1px dashed #9AA59D; color: #5F6C63; padding: 3px 8px; }
+.tabela-ano tfoot tr.total-comprometido td { border-top: 1px solid var(--linha); font-weight: 600; color: var(--suave); }
+.nota-tabela { margin: 10px 0 0; font-size: 12.5px; color: var(--suave); line-height: 1.5; }

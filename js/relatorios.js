@@ -314,22 +314,7 @@ async function telaAno(ctx) {
 
       <section class="cartao rel-bloco largo">
         <h3>Tabela do ano</h3>
-        <div class="tabela-rolagem">
-          <table class="tabela">
-            <thead><tr><th>Mês</th><th>Entradas</th><th>Saídas</th><th>Resultado</th><th>Dízimo</th></tr></thead>
-            <tbody>
-              ${meses.map((m, i) => `
-                <tr class="${n(m.entradas) || n(m.saidas) ? '' : 'apagado'}">
-                  <td>${MESES_CURTOS[i]}${m.fechado ? ' <span class="item-tag tag-cinza">fechado</span>' : ''}</td>
-                  <td>${esc(fmtMoeda(m.entradas))}</td>
-                  <td>${esc(fmtMoeda(m.saidas))}</td>
-                  <td class="${n(m.resultado) < 0 ? 'neg' : ''}">${esc(fmtMoeda(m.resultado))}</td>
-                  <td>${esc(fmtMoeda(m.dizimo))}</td>
-                </tr>`).join('')}
-            </tbody>
-            <tfoot><tr><td>Total</td><td>${esc(fmtMoeda(tot.entradas))}</td><td>${esc(fmtMoeda(tot.saidas))}</td><td class="${tot.resultado < 0 ? 'neg' : ''}">${esc(fmtMoeda(tot.resultado))}</td><td>${esc(fmtMoeda(tot.dizimo))}</td></tr></tfoot>
-          </table>
-        </div>
+        ${tabelaDoAno(meses)}
       </section>
 
       <section class="cartao rel-bloco">
@@ -384,6 +369,91 @@ async function telaAno(ctx) {
 
   ctx.el.querySelector('#btnImprimir').addEventListener('click', () => imprimir(htmlRelatorioAno(ctx, atual, tot, catSaida, clientes)));
   ctx.el.querySelector('#btnExcel').addEventListener('click', () => excelAno(ctx, atual));
+}
+
+// ---------------------------------------------------------------------
+// Tabela do ano: separa o que já aconteceu (realizado) do que está por vir (previsto).
+// Meses futuros mostram só as saídas já cadastradas; nada é estimado.
+// ---------------------------------------------------------------------
+const MESES_MIN = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+function situacaoMes(m) {
+  const atual = hojeISO().slice(0, 7);
+  if (m.mes > atual) return 'previsto';
+  if (m.fechado) return 'fechado';
+  if (m.mes === atual) return 'andamento';
+  return 'realizado';
+}
+
+function tabelaDoAno(meses) {
+  const linhas = meses.map((m, i) => ({ ...m, i, sit: situacaoMes(m) }));
+  const realizados = linhas.filter((m) => m.sit !== 'previsto');
+  const previstos = linhas.filter((m) => m.sit === 'previsto');
+  const soma = (l, campo) => l.reduce((s, m) => s + n(m[campo]), 0);
+  const traco = '<span class="tracos" aria-label="sem valor">—</span>';
+  const faixa = (l) => (l.length === 1 ? MESES_MIN[l[0].i] : `${MESES_MIN[l[0].i]}–${MESES_MIN[l[l.length - 1].i]}`);
+  const selo = {
+    fechado: ' <span class="item-tag tag-cinza">fechado</span>',
+    andamento: ' <span class="item-tag tag-verde">em andamento</span>',
+    previsto: ' <span class="item-tag tag-previsto">previsto</span>',
+    realizado: ''
+  };
+
+  const corpo = linhas.map((m) => {
+    if (m.sit === 'previsto') {
+      // Entradas só aparecem se já foram lançadas para aquele mês.
+      const temEntrada = n(m.entradas) > 0;
+      return `
+        <tr class="previsto">
+          <td>${MESES_CURTOS[m.i]}${selo.previsto}</td>
+          <td>${temEntrada ? esc(fmtMoeda(m.entradas)) : traco}</td>
+          <td>${n(m.saidas) ? esc(fmtMoeda(m.saidas)) : traco}</td>
+          <td>${temEntrada ? `<span class="${n(m.resultado) < 0 ? 'neg' : ''}">${esc(fmtMoeda(m.resultado))}</span>` : traco}</td>
+          <td>${temEntrada && n(m.dizimo) ? esc(fmtMoeda(m.dizimo)) : traco}</td>
+        </tr>`;
+    }
+    return `
+      <tr class="${n(m.entradas) || n(m.saidas) ? '' : 'apagado'}">
+        <td>${MESES_CURTOS[m.i]}${selo[m.sit]}</td>
+        <td>${esc(fmtMoeda(m.entradas))}</td>
+        <td>${esc(fmtMoeda(m.saidas))}</td>
+        <td class="${n(m.resultado) < 0 ? 'neg' : ''}">${esc(fmtMoeda(m.resultado))}</td>
+        <td>${esc(fmtMoeda(m.dizimo))}</td>
+      </tr>`;
+  }).join('');
+
+  let rodape = '';
+  if (realizados.length) {
+    const r = { e: soma(realizados, 'entradas'), s: soma(realizados, 'saidas'), res: soma(realizados, 'resultado'), d: soma(realizados, 'dizimo') };
+    rodape += `
+      <tr class="total-realizado">
+        <td>${previstos.length ? `Realizado (${faixa(realizados)})` : 'Total'}</td>
+        <td>${esc(fmtMoeda(r.e))}</td>
+        <td>${esc(fmtMoeda(r.s))}</td>
+        <td class="${r.res < 0 ? 'neg' : ''}">${esc(fmtMoeda(r.res))}</td>
+        <td>${esc(fmtMoeda(r.d))}</td>
+      </tr>`;
+  }
+  if (previstos.length) {
+    rodape += `
+      <tr class="total-comprometido">
+        <td>Já comprometido (${faixa(previstos)})</td>
+        <td>${traco}</td>
+        <td>${esc(fmtMoeda(soma(previstos, 'saidas')))}</td>
+        <td>${traco}</td>
+        <td>${traco}</td>
+      </tr>`;
+  }
+
+  return `
+    <div class="tabela-rolagem">
+      <table class="tabela tabela-ano">
+        <thead><tr><th>Mês</th><th>Entradas</th><th>Saídas</th><th>Resultado</th><th>Dízimo</th></tr></thead>
+        <tbody>${corpo}</tbody>
+        <tfoot>${rodape}</tfoot>
+      </table>
+    </div>
+    ${previstos.length ? '<p class="nota-tabela">Meses “previstos” mostram só as saídas já cadastradas (contas fixas). As entradas aparecem na tabela quando forem lançadas.</p>' : ''}`;
 }
 
 // =====================================================================

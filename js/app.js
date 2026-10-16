@@ -6,7 +6,7 @@ import { supabase, enderecoDoApp } from './supabase.js';
 import { APP_VERSAO } from './config.js';
 import { fecharFolha } from './util.js';
 import { renderCadastro, TITULOS_CADASTRO } from './cadastros.js';
-import { renderInicio, renderLancar } from './lancamentos.js';
+import { renderInicio, renderLancar, limparCacheBusca } from './lancamentos.js';
 import { renderContas, TITULOS_CONTAS } from './contas.js';
 import { renderReceber } from './receber.js';
 import { renderConferencia } from './conferencia.js';
@@ -423,6 +423,7 @@ function renderApp() {
 
 function renderTela() {
   const { tela: atual, sub, partes } = rotaAtual();
+  limparCacheBusca();   // ao trocar de tela, a busca sempre lê os dados atualizados
   const editandoLanc = atual === 'lancar' && partes[2];
   const titulo = sub ? TITULOS_CADASTRO[sub]
     : editandoLanc ? 'Editar lançamento'

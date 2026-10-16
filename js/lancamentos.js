@@ -17,7 +17,8 @@ const lista = {
   mes: hojeISO().slice(0, 7),   // AAAA-MM
   tipo: 'todos',                // todos | e | s | t
   conta: '',
-  busca: ''
+  busca: '',
+  escopo: 'ano'                 // ano | mes (onde a busca procura)
 };
 
 const TIPOS = { e: 'entrada', s: 'saida', t: 'transf' };
@@ -65,44 +66,54 @@ const ICONE = {
 // =====================================================================
 // INÍCIO — lista do mês
 // =====================================================================
-export async function renderInicio(ctx) {
-  const lar = ctx.lar;
-  ctx.el.innerHTML = '<div class="carregando-bloco">Carregando…</div>';
+// ---------------------------------------------------------------------
+// Busca: texto sem acento, destaque do termo e cache curto dos dados
+// ---------------------------------------------------------------------
+const semAcento = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-  const f = `${lista.mes}-01`;
-  const n = `${proximoMes(lista.mes)}-01`;
-  let base, ent, des, tra, mem, diz, apagar, ajs, fech;
-  try {
-    [base, ent, des, tra, mem, diz, apagar, ajs, fech] = await Promise.all([
-      carregarBase(lar),
-      supabase.from('entradas')
-        .select('*, categoria:categorias!entradas_categoria_fkey(nome, grupo), cliente:clientes!entradas_cliente_fkey(nome), conta:contas!entradas_conta_fkey(nome)')
-        .eq('lar_id', lar.id).eq('competencia', f),
-      supabase.from('despesas')
-        .select('*, categoria:categorias!despesas_categoria_fkey(nome, grupo), pagamentos(valor, conta_id, cliente_id)')
-        .eq('lar_id', lar.id).eq('competencia', f),
-      supabase.from('transferencias')
-        .select('*, origem:contas!transferencias_origem_fkey(nome), destino:contas!transferencias_destino_fkey(nome)')
-        .eq('lar_id', lar.id).gte('data', f).lt('data', n),
-      supabase.from('membros').select('user_id, nome').eq('lar_id', lar.id),
-      supabase.rpc('dizimo_mes', { p_mes: f }),
-      supabase.from('v_despesas').select('id, descricao, vencimento, valor, falta, status, atrasada, origem')
-        .eq('lar_id', lar.id).eq('competencia', f).in('origem', ['fixa', 'conta', 'dizimo']).neq('status', 'pago')
-        .order('vencimento'),
-      supabase.from('ajustes').select('id, data, diferenca, motivo, conta_id, criado_por, criado_em')
-        .eq('lar_id', lar.id).gte('data', f).lt('data', n),
-      supabase.from('meses_fechados').select('competencia').eq('lar_id', lar.id).eq('competencia', f)
-    ]);
-    for (const r of [ent, des, tra, mem, diz, apagar, ajs, fech]) if (r.error) throw r.error;
-  } catch (e) {
-    ctx.el.innerHTML = `<div class="aviso aviso-erro" role="alert">${esc(erroBanco(e))}</div>`;
-    return;
+// Destaca o termo no texto (ignora acentos e maiúsculas), já escapando o HTML.
+function destacar(texto, termo) {
+  const original = Array.from(String(texto ?? ''));
+  const alvo = semAcento(termo).trim();
+  if (!alvo) return esc(original.join(''));
+  const norm = original.map((c) => { const x = semAcento(c); return x.length === 1 ? x : (x[0] || c.toLowerCase()); }).join('');
+  let out = '';
+  let pos = 0;
+  let i = norm.indexOf(alvo);
+  while (i !== -1) {
+    out += esc(original.slice(pos, i).join('')) + '<mark>' + esc(original.slice(i, i + alvo.length).join('')) + '</mark>';
+    pos = i + alvo.length;
+    i = norm.indexOf(alvo, pos);
   }
+  return out + esc(original.slice(pos).join(''));
+}
+
+let cacheBusca = null;   // { chave, itens, quando }
+export function limparCacheBusca() { cacheBusca = null; }
+
+// Lê os lançamentos de um período [ini, fim) e devolve os itens no formato da lista.
+async function carregarItens(lar, base, ini, fim) {
+  const [ent, des, tra, mem, ajs] = await Promise.all([
+    supabase.from('entradas')
+      .select('*, categoria:categorias!entradas_categoria_fkey(nome, grupo), cliente:clientes!entradas_cliente_fkey(nome), conta:contas!entradas_conta_fkey(nome)')
+      .eq('lar_id', lar.id).gte('competencia', ini).lt('competencia', fim),
+    supabase.from('despesas')
+      .select('*, categoria:categorias!despesas_categoria_fkey(nome, grupo), pagamentos(valor, conta_id, cliente_id)')
+      .eq('lar_id', lar.id).gte('competencia', ini).lt('competencia', fim),
+    supabase.from('transferencias')
+      .select('*, origem:contas!transferencias_origem_fkey(nome), destino:contas!transferencias_destino_fkey(nome)')
+      .eq('lar_id', lar.id).gte('data', ini).lt('data', fim),
+    supabase.from('membros').select('user_id, nome').eq('lar_id', lar.id),
+    supabase.from('ajustes').select('id, data, diferenca, motivo, conta_id, criado_por, criado_em')
+      .eq('lar_id', lar.id).gte('data', ini).lt('data', fim)
+  ]);
+  for (const r of [ent, des, tra, mem, ajs]) if (r.error) throw r.error;
 
   const nomeConta = Object.fromEntries(base.contas.map((c) => [c.id, c.nome]));
   const nomeCliente = Object.fromEntries(base.clientes.map((c) => [c.id, c.nome]));
-  const corte = Object.fromEntries(base.contas.map((c) => [c.id, c.data_saldo_inicial]));
   // Lançamento com data igual ou anterior ao saldo inicial da conta não muda o saldo.
+  // Só vale para contas ativas: o histórico importado (conta desativada) não precisa do aviso.
+  const corte = Object.fromEntries(base.contas.filter((c) => c.ativa).map((c) => [c.id, c.data_saldo_inicial]));
   const foraDoSaldo = (data, ids) => ids.some((id) => id && corte[id] && data <= corte[id]);
   const nomeQuem = Object.fromEntries(mem.data.map((m) => [m.user_id, (m.nome || '').split(' ')[0]]));
   const quem = (id) => (nomeQuem[id] ? ' · ' + nomeQuem[id] : '');
@@ -110,23 +121,28 @@ export async function renderInicio(ctx) {
   const itens = [];
   ent.data.forEach((e) => itens.push({
     tipo: 'e', id: e.id, data: e.data, valor: Number(e.valor), contas: [e.conta_id], fora: foraDoSaldo(e.data, [e.conta_id]),
+    grupo: e.categoria?.grupo,
     titulo: e.cliente?.nome || e.descricao || e.categoria?.nome,
     sub: [e.categoria?.nome, e.conta ? e.conta.nome : 'Ficou com o cliente', e.cliente && e.descricao ? e.descricao : null].filter(Boolean).join(' · ') + quem(e.criado_por),
+    texto: [e.cliente?.nome, e.descricao, e.categoria?.nome, e.conta?.nome].filter(Boolean).join(' '),
     criado: e.criado_em
   }));
   des.data.forEach((d) => {
     const contas = (d.pagamentos || []).filter((p) => p.conta_id).map((p) => p.conta_id);
-    const pago = (d.pagamentos || []).reduce((s, p) => s + Number(p.valor), 0);
+    const pagoBruto = (d.pagamentos || []).reduce((s, p) => s + Number(p.valor), 0);
+    const pago = Math.min(pagoBruto, Number(d.valor));
     const situacao = pago >= Number(d.valor) - 0.005 ? '' : pago > 0 ? 'Parcial' : 'A pagar';
+    const nomesPag = [
+      ...contas.map((c) => nomeConta[c]),
+      ...(d.pagamentos || []).filter((p) => p.cliente_id).map((p) => `saldo ${nomeCliente[p.cliente_id] || 'cliente'}`)
+    ];
     itens.push({
-      link: d.origem === 'avulsa' ? null : `#/contas/m/${lista.mes}`,
-      situacao,
+      link: d.origem === 'avulsa' ? null : `#/contas/m/${String(d.competencia).slice(0, 7)}`,
+      situacao, pago, falta: Number(d.valor) - pago,
       tipo: 's', id: d.id, data: d.vencimento, valor: Number(d.valor), contas, fora: foraDoSaldo(d.vencimento, contas),
       titulo: d.descricao,
-      sub: [d.categoria?.nome, [
-        ...contas.map((c) => nomeConta[c]),
-        ...(d.pagamentos || []).filter((p) => p.cliente_id).map((p) => `saldo ${nomeCliente[p.cliente_id] || 'cliente'}`)
-      ].join(' + ')].filter(Boolean).join(' · ') + quem(d.criado_por),
+      sub: [d.categoria?.nome, nomesPag.join(' + ')].filter(Boolean).join(' · ') + quem(d.criado_por),
+      texto: [d.descricao, d.categoria?.nome, ...nomesPag].filter(Boolean).join(' '),
       criado: d.criado_em
     });
   });
@@ -134,21 +150,132 @@ export async function renderInicio(ctx) {
     tipo: 't', id: t.id, data: t.data, valor: Number(t.valor), contas: [t.conta_origem, t.conta_destino], fora: foraDoSaldo(t.data, [t.conta_origem, t.conta_destino]),
     titulo: t.descricao || 'Transferência',
     sub: `${t.origem?.nome} → ${t.destino?.nome}` + quem(t.criado_por),
+    texto: [t.descricao, 'Transferência', t.origem?.nome, t.destino?.nome].filter(Boolean).join(' '),
     criado: t.criado_em
   }));
-
   ajs.data.forEach((a) => itens.push({
     tipo: 'a', id: a.id, data: a.data, valor: Number(a.diferenca), contas: [a.conta_id], link: '#/conferir',
     titulo: 'Ajuste de conferência',
     sub: [nomeConta[a.conta_id], a.motivo].filter(Boolean).join(' · ') + quem(a.criado_por),
+    texto: ['Ajuste de conferência', nomeConta[a.conta_id], a.motivo].filter(Boolean).join(' '),
     criado: a.criado_em
   }));
-  const mesFechado = fech.data.length > 0;
+  return itens;
+}
 
-  const totEnt = ent.data.reduce((s, e) => s + Number(e.valor), 0);
-  const totSai = des.data.reduce((s, d) => s + Number(d.valor), 0);
+const ordenarRecentes = (a, b) => (b.data.localeCompare(a.data)) || (b.criado || '').localeCompare(a.criado || '');
+
+function linhaItem(i, termo = '') {
+  return `
+    <a class="item lanc lanc-${i.tipo}" href="${i.link ? esc(i.link) : `#/lancar/${i.tipo}/${esc(i.id)}`}">
+      <span class="lanc-icone">${ICONE[i.tipo]}</span>
+      <span class="item-texto"><strong>${termo ? destacar(i.titulo, termo) : esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.situacao ? `<span class="item-tag tag-cinza aviso-saldo">${i.situacao} · ver em Contas</span>` : ''}${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
+      <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : i.tipo === 'a' ? (i.valor < 0 ? '− ' : '+ ') : ''}${esc(fmtNumero(Math.abs(i.valor)))}</span>
+    </a>`;
+}
+
+function cartoesPorDia(lista_, termo = '') {
+  const porDia = {};
+  lista_.forEach((i) => { (porDia[i.data] = porDia[i.data] || []).push(i); });
+  return Object.keys(porDia).sort((a, b) => b.localeCompare(a)).map((d) => `
+    <section class="cartao lista">
+      <h3 class="lista-titulo dia">${esc(diaSemana(d))}</h3>
+      ${porDia[d].map((i) => linhaItem(i, termo)).join('')}
+    </section>`).join('');
+}
+
+// Filtros (tipo, busca, conta e — durante a busca — Mês | Ano).
+function htmlFiltros(base, emBusca) {
+  return `
+    <section class="filtros">
+      <div class="chips" role="group" aria-label="Tipo de lançamento">
+        ${[['todos', 'Todos'], ['e', 'Entradas'], ['s', 'Saídas'], ['t', 'Transferências']].map(([v, t]) =>
+          `<button type="button" class="chip-filtro" data-tipo="${v}" aria-pressed="${lista.tipo === v}">${t}</button>`).join('')}
+      </div>
+      <div class="busca-campo ${emBusca ? 'ativa' : ''}">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="fBusca" type="search" placeholder="Buscar por nome, categoria, conta ou cliente" value="${esc(lista.busca)}" aria-label="Buscar lançamentos" autocomplete="off">
+        ${emBusca ? '<button type="button" class="btn-icone" id="btnLimparBusca" aria-label="Limpar busca"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg></button>' : ''}
+      </div>
+      <div class="filtros-linha ${emBusca ? 'com-escopo' : 'so-conta'}">
+        <select id="fConta" aria-label="Filtrar por conta">
+          <option value="">Todas as contas</option>
+          ${base.contas.map((c) => `<option value="${esc(c.id)}" ${lista.conta === c.id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
+        </select>
+        ${emBusca ? `
+          <div class="escopo" role="radiogroup" aria-label="Onde buscar">
+            <button type="button" role="radio" aria-checked="${lista.escopo === 'mes'}" class="${lista.escopo === 'mes' ? 'ativo' : ''}" data-escopo="mes">Mês</button>
+            <button type="button" role="radio" aria-checked="${lista.escopo === 'ano'}" class="${lista.escopo === 'ano' ? 'ativo' : ''}" data-escopo="ano">Ano</button>
+          </div>` : ''}
+      </div>
+    </section>`;
+}
+
+function ligarFiltros(ctx, aoMudar) {
+  ctx.el.querySelectorAll('[data-tipo]').forEach((b) => b.addEventListener('click', () => {
+    lista.tipo = b.dataset.tipo;
+    aoMudar();
+  }));
+  ctx.el.querySelector('#fConta').addEventListener('change', (e) => { lista.conta = e.target.value; aoMudar(); });
+  ctx.el.querySelectorAll('[data-escopo]').forEach((b) => b.addEventListener('click', () => {
+    if (lista.escopo === b.dataset.escopo) return;
+    lista.escopo = b.dataset.escopo;
+    renderBusca(ctx);
+  }));
+  ctx.el.querySelector('#btnLimparBusca')?.addEventListener('click', () => {
+    lista.busca = '';
+    renderInicio(ctx);
+  });
+  let espera;
+  ctx.el.querySelector('#fBusca').addEventListener('input', (e) => {
+    clearTimeout(espera);
+    const valor = e.target.value;
+    espera = setTimeout(() => {
+      const antes = !!lista.busca.trim();
+      lista.busca = valor;
+      const agora = !!valor.trim();
+      if (agora && !antes) lista.escopo = 'ano';   // começou a buscar: padrão é o ano todo
+      if (antes && agora) { pintarBusca(ctx); return; }
+      (agora ? renderBusca(ctx) : renderInicio(ctx)).then(() => {
+        const b = ctx.el.querySelector('#fBusca');
+        if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+      });
+    }, 250);
+  });
+}
+
+// =====================================================================
+// INÍCIO — lista do mês
+// =====================================================================
+export async function renderInicio(ctx) {
+  if (lista.busca.trim()) return renderBusca(ctx);
+  const lar = ctx.lar;
+  ctx.el.innerHTML = '<div class="carregando-bloco">Carregando…</div>';
+
+  const f = `${lista.mes}-01`;
+  const n = `${proximoMes(lista.mes)}-01`;
+  let base, itens, diz, apagar, fech;
+  try {
+    base = await carregarBase(lar);
+    [itens, diz, apagar, fech] = await Promise.all([
+      carregarItens(lar, base, f, n),
+      supabase.rpc('dizimo_mes', { p_mes: f }),
+      supabase.from('v_despesas').select('id, descricao, vencimento, valor, falta, status, atrasada, origem')
+        .eq('lar_id', lar.id).eq('competencia', f).in('origem', ['fixa', 'conta', 'dizimo']).neq('status', 'pago')
+        .order('vencimento'),
+      supabase.from('meses_fechados').select('competencia').eq('lar_id', lar.id).eq('competencia', f)
+    ]);
+    for (const x of [diz, apagar, fech]) if (x.error) throw x.error;
+  } catch (e) {
+    ctx.el.innerHTML = `<div class="aviso aviso-erro" role="alert">${esc(erroBanco(e))}</div>`;
+    return;
+  }
+
+  const mesFechado = fech.data.length > 0;
+  const totEnt = itens.filter((i) => i.tipo === 'e').reduce((s, i) => s + i.valor, 0);
+  const totSai = itens.filter((i) => i.tipo === 's').reduce((s, i) => s + i.valor, 0);
   const resultado = totEnt - totSai;
-  const rendaEmpresa = ent.data.filter((e) => e.categoria?.grupo === 'renda_empresa').reduce((s, e) => s + Number(e.valor), 0);
+  const rendaEmpresa = itens.filter((i) => i.tipo === 'e' && i.grupo === 'renda_empresa').reduce((s, i) => s + i.valor, 0);
 
   const contasAtivas = base.contas.filter((c) => c.ativa);
   const totalContas = contasAtivas.reduce((s, c) => s + Number(c.saldo_atual), 0);
@@ -157,23 +284,11 @@ export async function renderInicio(ctx) {
   const dz = diz.data;
   const atrasadas = apagar.data.filter((d) => d.atrasada);
 
-  // filtros
-  const busca = lista.busca.trim().toLowerCase();
+  // filtros (sem busca: ordem padrão da lista do mês)
   const filtrados = itens
     .filter((i) => lista.tipo === 'todos' || i.tipo === lista.tipo)
     .filter((i) => !lista.conta || i.contas.includes(lista.conta))
-    .filter((i) => !busca || `${i.titulo} ${i.sub}`.toLowerCase().includes(busca))
-    .sort((a, b) => (b.data.localeCompare(a.data)) || (b.criado || '').localeCompare(a.criado || ''));
-
-  const porDia = {};
-  filtrados.forEach((i) => { (porDia[i.data] = porDia[i.data] || []).push(i); });
-
-  const linhaItem = (i) => `
-    <a class="item lanc lanc-${i.tipo}" href="${i.link ? esc(i.link) : `#/lancar/${i.tipo}/${esc(i.id)}`}">
-      <span class="lanc-icone">${ICONE[i.tipo]}</span>
-      <span class="item-texto"><strong>${esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.situacao ? `<span class="item-tag tag-cinza aviso-saldo">${i.situacao} · ver em Contas</span>` : ''}${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
-      <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : i.tipo === 'a' ? (i.valor < 0 ? '− ' : '+ ') : ''}${esc(fmtNumero(Math.abs(i.valor)))}</span>
-    </a>`;
+    .sort(ordenarRecentes);
 
   ctx.el.innerHTML = `
     <div class="mes-nav">
@@ -193,7 +308,7 @@ export async function renderInicio(ctx) {
         <div><span>Saídas do mês</span><strong>${esc(fmtMoeda(totSai))}</strong></div>
       </div>
       <div class="painel-rodape">
-        Resultado do mês: <strong class="${resultado < 0 ? 'neg-claro' : 'pos-claro'}">${resultado < 0 ? '− ' : '+ '}${esc(fmtMoeda(Math.abs(resultado)).replace('R$ ', 'R$ '))}</strong>
+        Resultado do mês: <strong class="${resultado < 0 ? 'neg-claro' : 'pos-claro'}">${resultado < 0 ? '− ' : '+ '}${esc(fmtMoeda(Math.abs(resultado)))}</strong>
         ${rendaEmpresa ? `<span>· Renda Empresa ${esc(fmtMoeda(rendaEmpresa))}</span>` : ''}
       </div>
     </section>
@@ -226,28 +341,12 @@ export async function renderInicio(ctx) {
         <a class="btn btn-primario" href="#/mais/contas">Ir para Minhas contas</a>
       </section>`}
 
-    <section class="filtros">
-      <div class="chips" role="group" aria-label="Tipo de lançamento">
-        ${[['todos', 'Todos'], ['e', 'Entradas'], ['s', 'Saídas'], ['t', 'Transferências']].map(([v, t]) =>
-          `<button type="button" class="chip-filtro" data-tipo="${v}" aria-pressed="${lista.tipo === v}">${t}</button>`).join('')}
-      </div>
-      <div class="filtros-linha">
-        <select id="fConta" aria-label="Filtrar por conta">
-          <option value="">Todas as contas</option>
-          ${base.contas.map((c) => `<option value="${esc(c.id)}" ${lista.conta === c.id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
-        </select>
-        <input id="fBusca" type="search" placeholder="Buscar" value="${esc(lista.busca)}" aria-label="Buscar lançamento">
-      </div>
-    </section>
+    ${htmlFiltros(base, false)}
 
-    ${filtrados.length ? Object.keys(porDia).map((d) => `
-      <section class="cartao lista">
-        <h3 class="lista-titulo dia">${esc(diaSemana(d))}</h3>
-        ${porDia[d].map(linhaItem).join('')}
-      </section>`).join('') : `
+    ${filtrados.length ? cartoesPorDia(filtrados) : `
       <section class="cartao vazio">
         <h2>${itens.length ? 'Nada com esse filtro' : 'Nenhum lançamento neste mês'}</h2>
-        <p>${itens.length ? 'Mude o filtro ou a busca.' : 'Toque no botão + para lançar entradas, saídas e transferências.'}</p>
+        <p>${itens.length ? 'Mude o filtro.' : 'Toque no botão + para lançar entradas, saídas e transferências.'}</p>
       </section>`}
 
     <p class="nota-etapa">Saídas do mês incluem as contas do mês, pagas ou não. O saldo das contas só muda quando a conta é paga.</p>`;
@@ -256,21 +355,103 @@ export async function renderInicio(ctx) {
     lista.mes = proximoMes(lista.mes, Number(b.dataset.mes));
     renderInicio(ctx);
   }));
-  ctx.el.querySelectorAll('[data-tipo]').forEach((b) => b.addEventListener('click', () => {
-    lista.tipo = b.dataset.tipo;
-    renderInicio(ctx);
+  ligarFiltros(ctx, () => renderInicio(ctx));
+}
+
+// =====================================================================
+// BUSCA — no ano todo (padrão) ou só no mês aberto
+// =====================================================================
+async function renderBusca(ctx) {
+  const lar = ctx.lar;
+  const ano = lista.mes.slice(0, 4);
+  const noMes = lista.escopo === 'mes';
+  const ini = noMes ? `${lista.mes}-01` : `${ano}-01-01`;
+  const fim = noMes ? `${proximoMes(lista.mes)}-01` : `${Number(ano) + 1}-01-01`;
+  const chave = `${lar.id}|${ini}|${fim}`;
+
+  let base;
+  try {
+    base = await carregarBase(lar);
+    if (!cacheBusca || cacheBusca.chave !== chave || Date.now() - cacheBusca.quando > 30000) {
+      ctx.el.innerHTML = `${htmlFiltros(base, true)}<div class="carregando-bloco">Buscando…</div>`;
+      cacheBusca = { chave, itens: await carregarItens(lar, base, ini, fim), quando: Date.now() };
+    }
+  } catch (e) {
+    ctx.el.innerHTML = `<div class="aviso aviso-erro" role="alert">${esc(erroBanco(e))}</div>`;
+    return;
+  }
+
+  ctx.el.innerHTML = `
+    ${noMes ? `
+      <div class="mes-nav">
+        <button class="btn-icone" type="button" data-mes="-1" aria-label="Mês anterior"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <h2>${esc(nomeMes(lista.mes))}</h2>
+        <button class="btn-icone" type="button" data-mes="1" aria-label="Próximo mês"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>` : ''}
+    ${htmlFiltros(base, true)}
+    <p class="busca-escopo">${noMes ? `Buscando só em ${esc(nomeMes(lista.mes).toLowerCase())}` : `Buscando em todos os meses de ${esc(ano)}`}</p>
+    <div id="resBusca"></div>`;
+
+  ctx.el.querySelectorAll('[data-mes]').forEach((b) => b.addEventListener('click', () => {
+    lista.mes = proximoMes(lista.mes, Number(b.dataset.mes));
+    renderBusca(ctx);
   }));
-  ctx.el.querySelector('#fConta').addEventListener('change', (e) => { lista.conta = e.target.value; renderInicio(ctx); });
-  let espera;
-  ctx.el.querySelector('#fBusca').addEventListener('input', (e) => {
-    clearTimeout(espera);
-    espera = setTimeout(async () => {
-      lista.busca = e.target.value;
-      await renderInicio(ctx);
-      const b = ctx.el.querySelector('#fBusca');
-      if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
-    }, 300);
-  });
+  ligarFiltros(ctx, () => pintarBusca(ctx));
+  pintarBusca(ctx);
+}
+
+// Só redesenha os resultados (mantém o campo de busca com o foco).
+function pintarBusca(ctx) {
+  const caixa = ctx.el.querySelector('#resBusca');
+  if (!caixa || !cacheBusca) return;
+  const termo = lista.busca.trim();
+  const alvo = semAcento(termo);
+  const noMes = lista.escopo === 'mes';
+  const periodo = noMes ? nomeMes(lista.mes).toLowerCase() : lista.mes.slice(0, 4);
+
+  const res = cacheBusca.itens
+    .filter((i) => lista.tipo === 'todos' || i.tipo === lista.tipo)
+    .filter((i) => !lista.conta || i.contas.includes(lista.conta))
+    .filter((i) => semAcento(`${i.titulo} ${i.texto}`).includes(alvo))
+    .sort(ordenarRecentes);
+
+  const ents = res.filter((i) => i.tipo === 'e');
+  const sais = res.filter((i) => i.tipo === 's');
+  const totE = ents.reduce((s, i) => s + i.valor, 0);
+  const totS = sais.reduce((s, i) => s + i.valor, 0);
+  const pago = sais.reduce((s, i) => s + i.pago, 0);
+  const falta = sais.reduce((s, i) => s + i.falta, 0);
+  const liquido = totE - totS;
+  const outros = res.length - ents.length - sais.length;
+
+  if (!res.length) {
+    caixa.innerHTML = `
+      <section class="cartao vazio">
+        <h2>Nada encontrado para “${esc(termo)}”</h2>
+        <p>${noMes ? 'Toque em "Ano" para buscar em todos os meses, ou tente outra palavra.' : 'Tente outra palavra, ou confira os filtros de tipo e conta.'}</p>
+      </section>`;
+    return;
+  }
+
+  caixa.innerHTML = `
+    <section class="cartao busca-resumo">
+      <span class="busca-rotulo">Resultado da busca por “${esc(termo)}”</span>
+      <div class="busca-linha">
+        <div>
+          <strong>${res.length} ${res.length === 1 ? 'lançamento' : 'lançamentos'}</strong>
+          <small>em ${esc(periodo)}</small>
+        </div>
+        <span class="busca-total ${liquido < 0 ? 'txt-saida' : 'txt-entrada'}">${liquido < 0 ? '− ' : '+ '}${esc(fmtMoeda(Math.abs(liquido)))}</span>
+      </div>
+      ${ents.length && sais.length ? `<p class="busca-mix">Entradas + ${esc(fmtMoeda(totE))} · Saídas − ${esc(fmtMoeda(totS))}</p>` : ''}
+      ${sais.length ? `
+        <div class="busca-pagos">
+          <span>Já pago <strong>${esc(fmtMoeda(pago))}</strong></span>
+          <span>Ainda a pagar <strong>${esc(fmtMoeda(falta))}</strong></span>
+        </div>` : ''}
+      ${outros ? `<p class="busca-mix">Transferências e ajustes aparecem na lista, mas não entram no total.</p>` : ''}
+    </section>
+    ${cartoesPorDia(res, termo)}`;
 }
 
 // ---------------------------------------------------------------------
@@ -651,6 +832,7 @@ export async function renderLancar(ctx, tipoRota, id) {
     }
 
     if (erro) return mostrarErro(form, erroBanco(erro));
+    limparCacheBusca();
 
     lista.mes = st.tipo === 'transf' ? st.data.slice(0, 7) : comp.slice(0, 7);
     if (outro) {
@@ -671,6 +853,7 @@ export async function renderLancar(ctx, tipoRota, id) {
     const tabela = { entrada: 'entradas', saida: 'despesas', transf: 'transferencias' }[st.tipo];
     const { error } = await supabase.from(tabela).delete().eq('id', reg.id);
     if (error) return mostrarErro(ctx.el.querySelector('#formLanc'), erroBanco(error));
+    limparCacheBusca();
     toast('Lançamento excluído.');
     window.location.hash = '#/inicio';
   }

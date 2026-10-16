@@ -874,3 +874,15 @@ mark { background: #DCEFD6; color: inherit; border-radius: 4px; padding: 0 2px; 
 .tag-previsto { background: transparent; border: 1px dashed #9AA59D; color: #5F6C63; padding: 3px 8px; }
 .tabela-ano tfoot tr.total-comprometido td { border-top: 1px solid var(--linha); font-weight: 600; color: var(--suave); }
 .nota-tabela { margin: 10px 0 0; font-size: 12.5px; color: var(--suave); line-height: 1.5; }
+
+/* Ordem da lista */
+.lista-ordem { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 13px; color: var(--suave); }
+.lista-ordem select {
+  min-height: 40px; padding: 0 10px; border: 1px solid var(--borda); border-radius: 12px;
+  background: var(--superficie); font-size: 14px; color: var(--tinta);
+}
+.bloco-futuro {
+  margin: 8px 2px 0; font-family: var(--fonte-titulo); font-size: 15px; color: var(--tinta);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.bloco-futuro small { font-family: var(--fonte-texto); font-size: 12.5px; font-weight: 500; color: var(--suave); }

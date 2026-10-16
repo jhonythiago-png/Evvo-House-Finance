@@ -18,8 +18,17 @@ const lista = {
   tipo: 'todos',                // todos | e | s | t
   conta: '',
   busca: '',
-  escopo: 'ano'                 // ano | mes (onde a busca procura)
+  escopo: 'ano',                // ano | mes (onde a busca procura)
+  ordem: lerOrdem()             // recentes | antigos
 };
+
+// A ordem escolhida fica guardada no aparelho.
+function lerOrdem() {
+  try { return localStorage.getItem('ehf_ordem') === 'antigos' ? 'antigos' : 'recentes'; } catch { return 'recentes'; }
+}
+function gravarOrdem(v) {
+  try { localStorage.setItem('ehf_ordem', v); } catch { /* sem armazenamento: vale só nesta sessão */ }
+}
 
 const TIPOS = { e: 'entrada', s: 'saida', t: 'transf' };
 
@@ -174,14 +183,39 @@ function linhaItem(i, termo = '') {
     </a>`;
 }
 
+// Cartões por dia.
+//   recentes: de hoje para trás; o que tem data depois de hoje (contas a vencer)
+//             vem num bloco separado no fim, do mais próximo ao mais distante.
+//   antigos:  do primeiro dia para o último.
 function cartoesPorDia(lista_, termo = '') {
   const porDia = {};
   lista_.forEach((i) => { (porDia[i.data] = porDia[i.data] || []).push(i); });
-  return Object.keys(porDia).sort((a, b) => b.localeCompare(a)).map((d) => `
+  const cartao = (d) => `
     <section class="cartao lista">
       <h3 class="lista-titulo dia">${esc(diaSemana(d))}</h3>
       ${porDia[d].map((i) => linhaItem(i, termo)).join('')}
-    </section>`).join('');
+    </section>`;
+  const dias = Object.keys(porDia);
+  if (lista.ordem === 'antigos') {
+    return dias.sort((a, b) => a.localeCompare(b)).map(cartao).join('');
+  }
+  const hoje = hojeISO();
+  const passados = dias.filter((d) => d <= hoje).sort((a, b) => b.localeCompare(a));
+  const futuros = dias.filter((d) => d > hoje).sort((a, b) => a.localeCompare(b));
+  return passados.map(cartao).join('') + (futuros.length ? `
+    <h3 class="bloco-futuro">Ainda vão acontecer <small>${futuros.length === 1 ? '1 dia' : futuros.length + ' dias'} com lançamentos a partir de amanhã</small></h3>
+    ${futuros.map(cartao).join('')}` : '');
+}
+
+function htmlOrdem() {
+  return `
+    <div class="lista-ordem">
+      <label for="fOrdem">Ordem</label>
+      <select id="fOrdem">
+        <option value="recentes" ${lista.ordem === 'recentes' ? 'selected' : ''}>Mais recentes primeiro</option>
+        <option value="antigos" ${lista.ordem === 'antigos' ? 'selected' : ''}>Mais antigos primeiro</option>
+      </select>
+    </div>`;
 }
 
 // Filtros (tipo, busca, conta e — durante a busca — Mês | Ano).
@@ -342,6 +376,7 @@ export async function renderInicio(ctx) {
       </section>`}
 
     ${htmlFiltros(base, false)}
+    ${filtrados.length ? htmlOrdem() : ''}
 
     ${filtrados.length ? cartoesPorDia(filtrados) : `
       <section class="cartao vazio">
@@ -356,6 +391,11 @@ export async function renderInicio(ctx) {
     renderInicio(ctx);
   }));
   ligarFiltros(ctx, () => renderInicio(ctx));
+  ctx.el.querySelector('#fOrdem')?.addEventListener('change', (e) => {
+    lista.ordem = e.target.value;
+    gravarOrdem(lista.ordem);
+    renderInicio(ctx);
+  });
 }
 
 // =====================================================================
@@ -451,7 +491,13 @@ function pintarBusca(ctx) {
         </div>` : ''}
       ${outros ? `<p class="busca-mix">Transferências e ajustes aparecem na lista, mas não entram no total.</p>` : ''}
     </section>
+    ${htmlOrdem()}
     ${cartoesPorDia(res, termo)}`;
+  caixa.querySelector('#fOrdem').addEventListener('change', (e) => {
+    lista.ordem = e.target.value;
+    gravarOrdem(lista.ordem);
+    pintarBusca(ctx);
+  });
 }
 
 // ---------------------------------------------------------------------

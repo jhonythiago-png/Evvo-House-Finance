@@ -43,7 +43,7 @@ export async function telaAvisos(ctx) {
 
   ctx.el.innerHTML = `
     ${VOLTAR}
-    <p class="intro">Todo dia às ${textoHorarios}, quem estiver aqui recebe no WhatsApp as contas <strong>não pagas</strong> que vencem <strong>amanhã</strong> e <strong>hoje</strong>. Quando a conta é marcada como paga, ela sai dos lembretes.</p>
+    <p class="intro">Todo dia às ${textoHorarios}, quem estiver aqui recebe no WhatsApp as contas <strong>não pagas</strong>: as que <strong>já venceram</strong>, as que vencem <strong>hoje</strong> e as de <strong>amanhã</strong>. Quando a conta é marcada como paga, ela sai dos lembretes.</p>
 
     <section class="cartao lista">
       <h2 class="lista-titulo">Quem recebe</h2>
@@ -73,7 +73,7 @@ export async function telaAvisos(ctx) {
       <h2 class="lista-titulo sem-pad" style="margin-bottom:8px">Mensagem de agora</h2>
       ${previa
         ? `<pre class="msg-convite">${esc(previa)}</pre>`
-        : '<p class="ajuda" style="margin:0">Nenhuma conta a pagar vence hoje ou amanhã: nenhum lembrete seria enviado agora.</p>'}
+        : '<p class="ajuda" style="margin:0">Nenhuma conta vencida, vencendo hoje ou amanhã: nenhum lembrete seria enviado agora.</p>'}
     </section>
 
     ${historico.length ? `

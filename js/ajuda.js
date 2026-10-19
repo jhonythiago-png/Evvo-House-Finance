@@ -108,7 +108,7 @@ const SECOES = [
   {
     id: 'whatsapp', titulo: 'Avisos no WhatsApp (CallMeBot): instalar e configurar',
     html: `
-      <p>O app manda no WhatsApp, nos horários que você escolher, as contas <strong>não pagas</strong> que vencem <strong>amanhã</strong> e <strong>hoje</strong>. O envio é feito pela <strong>CallMeBot</strong>, um serviço gratuito. Cada pessoa precisa ativar a CallMeBot no próprio celular uma vez.</p>
+      <p>O app manda no WhatsApp, nos horários que você escolher, as contas <strong>não pagas</strong>: as que <strong>já venceram</strong> (até 60 dias), as que vencem <strong>hoje</strong> e as de <strong>amanhã</strong>. Se não houver nenhuma, nenhuma mensagem é enviada naquele horário. O envio é feito pela <strong>CallMeBot</strong>, um serviço gratuito. Cada pessoa precisa ativar a CallMeBot no próprio celular uma vez.</p>
       <p><strong>Passo a passo (uma vez por celular):</strong></p>
       <ol>
         <li>Abra o site <strong>callmebot.com</strong> e entre na página <strong>"Free WhatsApp API"</strong>. Lá aparece o <strong>número atual da CallMeBot</strong> (ele muda de tempos em tempos, por isso confira sempre no site).</li>

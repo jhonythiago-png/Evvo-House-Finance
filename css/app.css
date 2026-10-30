@@ -886,3 +886,8 @@ mark { background: #DCEFD6; color: inherit; border-radius: 4px; padding: 0 2px; 
   display: flex; flex-direction: column; gap: 2px;
 }
 .bloco-futuro small { font-family: var(--fonte-texto); font-size: 12.5px; font-weight: 500; color: var(--suave); }
+
+/* Olho: ocultar valores */
+.btn-olho { color: var(--suave); flex-shrink: 0; }
+.btn-olho[aria-pressed="true"] { color: var(--verde); background: var(--verde-claro); }
+body.valores-ocultos .grafico canvas { filter: blur(6px); }

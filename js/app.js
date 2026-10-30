@@ -4,7 +4,7 @@
 // =====================================================================
 import { supabase, enderecoDoApp } from './supabase.js';
 import { APP_VERSAO } from './config.js';
-import { fecharFolha } from './util.js';
+import { fecharFolha, valoresOcultos, alternarValores } from './util.js';
 import { renderCadastro, TITULOS_CADASTRO } from './cadastros.js';
 import { renderInicio, renderLancar, limparCacheBusca } from './lancamentos.js';
 import { renderContas, TITULOS_CONTAS } from './contas.js';
@@ -400,6 +400,7 @@ function renderApp() {
               <div class="topo-lar">${esc(lar.nome)}</div>
             </div>
           </div>
+          <button class="btn-icone btn-olho" type="button" id="btnOlho"></button>
         </header>
         <main class="conteudo" id="conteudo"></main>
       </div>
@@ -410,6 +411,21 @@ function renderApp() {
         ).join('')}
       </nav>
     </div>`;
+
+  // Olho: mostra/oculta os valores em reais em todas as telas.
+  const olho = document.getElementById('btnOlho');
+  const pintarOlho = () => {
+    const oc = valoresOcultos();
+    document.body.classList.toggle('valores-ocultos', oc);
+    olho.setAttribute('aria-pressed', String(oc));
+    olho.setAttribute('aria-label', oc ? 'Mostrar valores' : 'Ocultar valores');
+    olho.title = oc ? 'Mostrar valores' : 'Ocultar valores';
+    olho.innerHTML = oc
+      ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A9.8 9.8 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3.2 4.1M6.1 6.6A17 17 0 0 0 2.5 12S6 19 12 19a9.6 9.6 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  };
+  pintarOlho();
+  olho.addEventListener('click', () => { alternarValores(); pintarOlho(); renderTela(); });
 
   if (!navegacaoLigada) {
     window.addEventListener('hashchange', () => {

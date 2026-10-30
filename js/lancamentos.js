@@ -6,7 +6,7 @@
 import { supabase } from './supabase.js';
 import {
   esc, fmtMoeda, fmtNumero, parseMoeda, dataBR, hojeISO, erroBanco, mostrarErro, toast,
-  opcoesOrigem, origemParaLinha, linhaParaOrigem
+  opcoesOrigem, origemParaLinha, linhaParaOrigem, fmtValor
 } from './util.js';
 import { GRUPOS } from './cadastros.js';
 
@@ -179,7 +179,7 @@ function linhaItem(i, termo = '') {
     <a class="item lanc lanc-${i.tipo}" href="${i.link ? esc(i.link) : `#/lancar/${i.tipo}/${esc(i.id)}`}">
       <span class="lanc-icone">${ICONE[i.tipo]}</span>
       <span class="item-texto"><strong>${termo ? destacar(i.titulo, termo) : esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.situacao ? `<span class="item-tag tag-cinza aviso-saldo">${i.situacao} · ver em Contas</span>` : ''}${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
-      <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : i.tipo === 'a' ? (i.valor < 0 ? '− ' : '+ ') : ''}${esc(fmtNumero(Math.abs(i.valor)))}</span>
+      <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : i.tipo === 'a' ? (i.valor < 0 ? '− ' : '+ ') : ''}${esc(fmtValor(Math.abs(i.valor)))}</span>
     </a>`;
 }
 

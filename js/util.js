@@ -6,8 +6,36 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
 
-// R$ 1.234,56 (negativo com sinal de menos)
+// ---------------------------------------------------------------------
+// Ocultar valores (olho no topo): só muda o que aparece na tela.
+// Campos de formulário continuam com o valor real para poder editar.
+// ---------------------------------------------------------------------
+const OCULTO = '•••••';
+let ocultos = (() => { try { return localStorage.getItem('ehf_ocultar') === '1'; } catch { return false; } })();
+
+export function valoresOcultos() { return ocultos; }
+
+export function alternarValores() {
+  ocultos = !ocultos;
+  try { localStorage.setItem('ehf_ocultar', ocultos ? '1' : '0'); } catch { /* vale só nesta sessão */ }
+  document.body.classList.toggle('valores-ocultos', ocultos);
+  return ocultos;
+}
+
+// Troca valores em reais dentro de um texto pronto (ex.: prévia do WhatsApp).
+export function mascararTexto(t) {
+  if (!ocultos) return t;
+  return String(t ?? '').replace(/[−-]?\s?R\$\s?-?[\d.]+,\d{2}/g, 'R$ ' + OCULTO);
+}
+
+// Número para exibir (lista, diferenças): respeita o olho.
+export function fmtValor(v) {
+  return ocultos ? OCULTO : fmtNumero(v);
+}
+
+// R$ 1.234,56 (negativo com sinal de menos). Com valores ocultos: R$ •••••
 export function fmtMoeda(v) {
+  if (ocultos) return 'R$ ' + OCULTO;
   const n = Number(v || 0);
   const txt = Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (n < 0 ? '− R$ ' : 'R$ ') + txt;

@@ -3,7 +3,7 @@
 // Quem recebe os lembretes de contas a vencer (10h e 16h) pela CallMeBot.
 // =====================================================================
 import { supabase } from './supabase.js';
-import { esc, erroBanco, abrirFolha, fecharFolha, mostrarErro, toast } from './util.js';
+import { esc, erroBanco, abrirFolha, fecharFolha, mostrarErro, toast, mascararTexto } from './util.js';
 
 const VOLTAR = '<a class="voltar" href="#/mais"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Mais</a>';
 
@@ -72,7 +72,7 @@ export async function telaAvisos(ctx) {
     <section class="cartao">
       <h2 class="lista-titulo sem-pad" style="margin-bottom:8px">Mensagem de agora</h2>
       ${previa
-        ? `<pre class="msg-convite">${esc(previa)}</pre>`
+        ? `<pre class="msg-convite">${esc(mascararTexto(previa))}</pre>`
         : '<p class="ajuda" style="margin:0">Nenhuma conta vencida, vencendo hoje ou amanhã: nenhum lembrete seria enviado agora.</p>'}
     </section>
 

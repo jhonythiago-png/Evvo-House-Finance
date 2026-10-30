@@ -3,7 +3,7 @@
 // Gráficos mensal e anual, comparativo entre anos, impressão/PDF e Excel.
 // =====================================================================
 import { supabase } from './supabase.js';
-import { esc, fmtMoeda, dataBR, hojeISO, erroBanco, toast } from './util.js';
+import { esc, fmtMoeda, dataBR, hojeISO, erroBanco, toast, valoresOcultos } from './util.js';
 import { GRUPOS } from './cadastros.js';
 
 const CHART_JS = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
@@ -54,6 +54,7 @@ function ultimoDia(ym) {
 }
 const n = (v) => Number(v || 0);
 const moedaCurta = (v) => {
+  if (valoresOcultos()) return 'R$ •••';
   const a = Math.abs(v);
   const s = a >= 1000 ? (a / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : a.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   return (v < 0 ? '−' : '') + 'R$ ' + s;

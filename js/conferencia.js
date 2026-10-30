@@ -4,7 +4,7 @@
 // (fora da renda e do dízimo) e fecha/reabre o mês.
 // =====================================================================
 import { supabase } from './supabase.js';
-import { esc, fmtMoeda, fmtNumero, parseMoeda, dataBR, hojeISO, erroBanco, mostrarErro, toast } from './util.js';
+import { esc, fmtMoeda, fmtNumero, parseMoeda, dataBR, hojeISO, erroBanco, mostrarErro, toast , fmtValor } from './util.js';
 
 const est = { mes: hojeISO().slice(0, 7), data: null, informados: {} };
 
@@ -201,7 +201,7 @@ export async function renderConferencia(ctx) {
       preenchidas++;
       const dif = Math.round((v - Number(c.saldo)) * 100) / 100;
       total += dif;
-      span.textContent = Math.abs(dif) < 0.005 ? 'Bateu' : `${dif > 0 ? '+' : '−'} ${fmtNumero(Math.abs(dif))}`;
+      span.textContent = Math.abs(dif) < 0.005 ? 'Bateu' : `${dif > 0 ? '+' : '−'} ${fmtValor(Math.abs(dif))}`;
       span.className = 'conf-dif ' + (Math.abs(dif) < 0.005 ? 'ok' : 'neg');
     });
     const tot = ctx.el.querySelector('#confTotal');

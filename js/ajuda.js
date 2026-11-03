@@ -55,7 +55,7 @@ const SECOES = [
     html: `
       <p><strong>Despesas fixas</strong> (Contas › Despesas fixas) geram uma conta por mês no dia do vencimento. Marque <strong>"Valor muda todo mês"</strong> para água, luz e parecidos.</p>
       <p><strong>Corrigir o valor:</strong> toque no nome da conta. Escolha <strong>Só este mês</strong> (a água veio maior) ou <strong>Este e os próximos</strong> (reajuste do aluguel).</p>
-      <p><strong>Faturas de cartão:</strong> use <strong>Conta a pagar</strong> e lance o valor total quando a fatura fechar. Se a fatura tiver gasto da empresa, lance essa parte como outra conta com categoria da empresa (assim o dízimo deduz certo).</p>
+      <p><strong>Faturas de cartão:</strong> use <strong>Conta a pagar</strong> e lance o valor total quando a fatura fechar. Gasto da empresa passado no cartão: lance pelo botão <strong>+</strong> › Saída, escolha a categoria da empresa e marque <strong>"Paguei no cartão de crédito"</strong>. Ele só abate do dízimo e não entra nas saídas, então a fatura continua sendo lançada inteira, como na planilha.</p>
       <p><strong>Pagar:</strong> toque em <strong>Pagar</strong>, escolha de onde saiu o dinheiro (pode dividir) e a data. Pagamento menor que o valor fica como <strong>Parcial</strong>. Dá para apagar um pagamento ou <strong>desfazer todos</strong>.</p>
       <p>Contas vencidas e não pagas aparecem com uma faixa vermelha.</p>
       <p><strong>Importante:</strong> pague as contas fixas sempre pela aba Contas. O botão + é só para gastos do dia a dia; usar os dois para a mesma conta duplica a saída.</p>`
@@ -78,6 +78,7 @@ const SECOES = [
         <li><strong>Despesas da Empresa:</strong> é deduzida.</li>
         <li><strong>Outras Rendas, Despesas da Casa, transferências e ajustes:</strong> ficam fora.</li>
       </ul>
+      <p><strong>Despesa da empresa paga no cartão de crédito:</strong> lance como Saída na categoria da empresa e marque "Paguei no cartão de crédito". Ela reduz a base do dízimo do mês, sem pedir de onde saiu o dinheiro e sem duplicar com a fatura.</p>
       <p>Uma renda que não é do trabalho mas que você dizima (ex.: restituição de imposto) deve ter uma categoria no grupo <strong>Renda Empresa</strong>.</p>
       <p>A conta <strong>Dízimo</strong> aparece em Contas todo mês. Se você pagar e depois entrar mais renda, ela fica <strong>Parcial</strong> com a diferença a pagar.</p>
       <p>Percentual e liga/desliga: Mais › Dízimo e dados do lar.</p>`

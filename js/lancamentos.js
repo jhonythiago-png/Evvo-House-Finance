@@ -30,7 +30,7 @@ function gravarOrdem(v) {
   try { localStorage.setItem('ehf_ordem', v); } catch { /* sem armazenamento: vale só nesta sessão */ }
 }
 
-const TIPOS = { e: 'entrada', s: 'saida', t: 'transf' };
+const TIPOS = { e: 'entrada', s: 'saida', t: 'transf', d: 'saida' };
 
 // ---------------------------------------------------------------------
 // Datas
@@ -69,7 +69,8 @@ const ICONE = {
   e: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
   s: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
   t: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 7h12l-4-4M17 17H5l4 4"/></svg>',
-  a: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h10M4 17h6M18 4v6M15 7h6M14 17h6"/></svg>'
+  a: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h10M4 17h6M18 4v6M15 7h6M14 17h6"/></svg>',
+  d: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>'
 };
 
 // =====================================================================
@@ -102,7 +103,7 @@ export function limparCacheBusca() { cacheBusca = null; }
 
 // Lê os lançamentos de um período [ini, fim) e devolve os itens no formato da lista.
 async function carregarItens(lar, base, ini, fim) {
-  const [ent, des, tra, mem, ajs] = await Promise.all([
+  const [ent, des, tra, mem, ajs, ded] = await Promise.all([
     supabase.from('entradas')
       .select('*, categoria:categorias!entradas_categoria_fkey(nome, grupo), cliente:clientes!entradas_cliente_fkey(nome), conta:contas!entradas_conta_fkey(nome)')
       .eq('lar_id', lar.id).gte('competencia', ini).lt('competencia', fim),
@@ -114,9 +115,11 @@ async function carregarItens(lar, base, ini, fim) {
       .eq('lar_id', lar.id).gte('data', ini).lt('data', fim),
     supabase.from('membros').select('user_id, nome').eq('lar_id', lar.id),
     supabase.from('ajustes').select('id, data, diferenca, motivo, conta_id, criado_por, criado_em')
-      .eq('lar_id', lar.id).gte('data', ini).lt('data', fim)
+      .eq('lar_id', lar.id).gte('data', ini).lt('data', fim),
+    supabase.from('dizimo_deducoes').select('*, categoria:categorias!deducoes_categoria_fkey(nome)')
+      .eq('lar_id', lar.id).gte('competencia', ini).lt('competencia', fim)
   ]);
-  for (const r of [ent, des, tra, mem, ajs]) if (r.error) throw r.error;
+  for (const r of [ent, des, tra, mem, ajs, ded]) if (r.error) throw r.error;
 
   const nomeConta = Object.fromEntries(base.contas.map((c) => [c.id, c.nome]));
   const nomeCliente = Object.fromEntries(base.clientes.map((c) => [c.id, c.nome]));
@@ -169,8 +172,19 @@ async function carregarItens(lar, base, ini, fim) {
     texto: ['Ajuste de conferência', nomeConta[a.conta_id], a.motivo].filter(Boolean).join(' '),
     criado: a.criado_em
   }));
+  // Despesa da empresa paga no cartão: só abate do dízimo, não entra nas saídas.
+  ded.data.forEach((z) => itens.push({
+    tipo: 'd', id: z.id, data: z.data, valor: Number(z.valor), contas: [],
+    titulo: z.descricao,
+    sub: [z.categoria?.nome, 'no cartão'].filter(Boolean).join(' · ') + quem(z.criado_por),
+    texto: [z.descricao, z.categoria?.nome, 'cartão'].filter(Boolean).join(' '),
+    criado: z.criado_em
+  }));
   return itens;
 }
+
+// Filtro de tipo: "Saídas" também mostra as despesas da empresa no cartão.
+const passaTipo = (i) => lista.tipo === 'todos' || i.tipo === lista.tipo || (lista.tipo === 's' && i.tipo === 'd');
 
 const ordenarRecentes = (a, b) => (b.data.localeCompare(a.data)) || (b.criado || '').localeCompare(a.criado || '');
 
@@ -178,7 +192,7 @@ function linhaItem(i, termo = '') {
   return `
     <a class="item lanc lanc-${i.tipo}" href="${i.link ? esc(i.link) : `#/lancar/${i.tipo}/${esc(i.id)}`}">
       <span class="lanc-icone">${ICONE[i.tipo]}</span>
-      <span class="item-texto"><strong>${termo ? destacar(i.titulo, termo) : esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.situacao ? `<span class="item-tag tag-cinza aviso-saldo">${i.situacao} · ver em Contas</span>` : ''}${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}</span>
+      <span class="item-texto"><strong>${termo ? destacar(i.titulo, termo) : esc(i.titulo)}</strong><small>${esc(i.sub)}</small>${i.situacao ? `<span class="item-tag tag-cinza aviso-saldo">${i.situacao} · ver em Contas</span>` : ''}${i.fora ? '<span class="item-tag tag-ambar aviso-saldo">Antes do saldo inicial: não muda o saldo</span>' : ''}${i.tipo === 'd' ? '<span class="item-tag tag-azul aviso-saldo">Só abate do dízimo · a fatura entra inteira</span>' : ''}</span>
       <span class="item-valor">${i.tipo === 'e' ? '+ ' : i.tipo === 's' ? '− ' : i.tipo === 'a' ? (i.valor < 0 ? '− ' : '+ ') : ''}${esc(fmtValor(Math.abs(i.valor)))}</span>
     </a>`;
 }
@@ -320,7 +334,7 @@ export async function renderInicio(ctx) {
 
   // filtros (sem busca: ordem padrão da lista do mês)
   const filtrados = itens
-    .filter((i) => lista.tipo === 'todos' || i.tipo === lista.tipo)
+    .filter(passaTipo)
     .filter((i) => !lista.conta || i.contas.includes(lista.conta))
     .sort(ordenarRecentes);
 
@@ -450,7 +464,7 @@ function pintarBusca(ctx) {
   const periodo = noMes ? nomeMes(lista.mes).toLowerCase() : lista.mes.slice(0, 4);
 
   const res = cacheBusca.itens
-    .filter((i) => lista.tipo === 'todos' || i.tipo === lista.tipo)
+    .filter(passaTipo)
     .filter((i) => !lista.conta || i.contas.includes(lista.conta))
     .filter((i) => semAcento(`${i.titulo} ${i.texto}`).includes(alvo))
     .sort(ordenarRecentes);
@@ -489,7 +503,7 @@ function pintarBusca(ctx) {
           <span>Já pago <strong>${esc(fmtMoeda(pago))}</strong></span>
           <span>Ainda a pagar <strong>${esc(fmtMoeda(falta))}</strong></span>
         </div>` : ''}
-      ${outros ? `<p class="busca-mix">Transferências e ajustes aparecem na lista, mas não entram no total.</p>` : ''}
+      ${outros ? `<p class="busca-mix">Transferências, ajustes e despesas da empresa no cartão aparecem na lista, mas não entram no total.</p>` : ''}
     </section>
     ${htmlOrdem()}
     ${cartoesPorDia(res, termo)}`;
@@ -565,7 +579,7 @@ export async function renderLancar(ctx, tipoRota, id) {
   try {
     base = await carregarBase(lar);
     if (id) {
-      const tabela = { e: 'entradas', s: 'despesas', t: 'transferencias' }[tipoRota];
+      const tabela = { e: 'entradas', s: 'despesas', t: 'transferencias', d: 'dizimo_deducoes' }[tipoRota];
       const sel = tipoRota === 's' ? '*, pagamentos(conta_id, cliente_id, valor)' : '*';
       const { data, error } = await supabase.from(tabela).select(sel).eq('id', id).single();
       if (error) throw error;
@@ -605,8 +619,11 @@ export async function renderLancar(ctx, tipoRota, id) {
     linhas: reg && tipoRota === 's'
       ? reg.pagamentos.map((p) => ({ conta: linhaParaOrigem(p), valor: fmtNumero(p.valor) }))
       : [{ conta: '', valor: '' }],
-    linha0Manual: !!(reg && tipoRota === 's' && reg.pagamentos.length > 1)
+    linha0Manual: !!(reg && tipoRota === 's' && reg.pagamentos.length > 1),
+    // Despesa da empresa paga no cartão de crédito: só abate do dízimo.
+    cartao: tipoRota === 'd'
   };
+  const grupoDe = (id) => base.categorias.find((c) => c.id === id)?.grupo;
 
   const usadas = new Set([st.categoria, st.cliente, st.onde, st.de, st.para, ...st.linhas.map((l) => (l.conta || '').slice(2))]);
   const contasOk = base.contas.filter((c) => c.ativa || usadas.has(c.id));
@@ -652,7 +669,7 @@ export async function renderLancar(ctx, tipoRota, id) {
     }
 
     const titulo = editando
-      ? { entrada: 'Editar entrada', saida: 'Editar saída', transf: 'Editar transferência' }[st.tipo]
+      ? (st.cartao ? 'Editar despesa no cartão' : { entrada: 'Editar entrada', saida: 'Editar saída', transf: 'Editar transferência' }[st.tipo])
       : 'Novo lançamento';
 
     ctx.el.innerHTML = `
@@ -690,6 +707,13 @@ export async function renderLancar(ctx, tipoRota, id) {
           ${st.tipo === 'saida' ? `
             <div class="campo"><label for="fDescricao">Descrição</label><input id="fDescricao" value="${esc(st.descricao)}" placeholder="Ex.: Mercado, Pix presente"></div>
             <div class="campo"><label for="fCategoria">Categoria</label><select id="fCategoria">${opcoesCategorias('saida')}</select></div>
+            ${grupoDe(st.categoria) === 'despesa_empresa' && !(editando && tipoRota === 's') ? `
+              <label class="check check-cartao">
+                <input type="checkbox" id="fCartao" ${st.cartao ? 'checked' : ''} ${editando ? 'disabled' : ''}>
+                <span>Paguei no cartão de crédito: só abater do dízimo</span>
+              </label>
+              ${st.cartao ? '<small class="ajuda ok">Não entra nas saídas nem pede de onde saiu o dinheiro: a fatura do cartão você lança inteira depois, como sempre. Aqui ela só reduz a base do dízimo do mês.</small>' : ''}` : ''}
+            ${st.cartao && grupoDe(st.categoria) === 'despesa_empresa' ? '' : `
             <div class="campo">
               <span class="rotulo-campo">De onde saiu o dinheiro?</span>
               ${st.linhas.map((l, i) => `
@@ -701,7 +725,7 @@ export async function renderLancar(ctx, tipoRota, id) {
               <button type="button" class="btn-link" id="btnDividir">+ dividir com outra conta</button>
               <small class="ajuda" id="ajudaLinhas"></small>
               <small class="ajuda ok" id="ajudaCliente"></small>
-            </div>
+            </div>`}
           ` : ''}
 
           ${st.tipo === 'transf' ? `
@@ -798,7 +822,17 @@ export async function renderLancar(ctx, tipoRota, id) {
       if (linha && linha.dataset.linha === '0' && e.target.tagName === 'INPUT') st.linha0Manual = true;
       atualizarAjudas();
     });
-    form.addEventListener('change', () => { lerCampos(); atualizarAjudas(); });
+    form.addEventListener('change', (e) => {
+      lerCampos();
+      if (e.target.id === 'fCartao') { st.cartao = e.target.checked; desenhar(); return; }
+      if (e.target.id === 'fCategoria') {
+        // Saiu do grupo da empresa: a opção do cartão deixa de valer (exceto ao editar uma despesa no cartão).
+        if (grupoDe(st.categoria) !== 'despesa_empresa' && tipoRota !== 'd') st.cartao = false;
+        desenhar();
+        return;
+      }
+      atualizarAjudas();
+    });
 
     ctx.el.querySelector('#btnDividir')?.addEventListener('click', () => {
       lerCampos();
@@ -827,6 +861,30 @@ export async function renderLancar(ctx, tipoRota, id) {
     if (!st.data) return mostrarErro(form, 'Informe a data.');
     const comp = (st.comp || st.data.slice(0, 7)) + '-01';
     let erro = null;
+
+    // Despesa da empresa no cartão: grava só a dedução do dízimo.
+    if (st.tipo === 'saida' && st.cartao) {
+      if (grupoDe(st.categoria) !== 'despesa_empresa') return mostrarErro(form, 'Escolha uma categoria do grupo Despesas da Empresa.');
+      const nomeCat = base.categorias.find((c) => c.id === st.categoria)?.nome || 'Despesa da empresa';
+      const r = { lar_id: lar.id, data: st.data, competencia: comp, valor, descricao: st.descricao.trim() || nomeCat, categoria_id: st.categoria };
+      const { error } = editando
+        ? await supabase.from('dizimo_deducoes').update(r).eq('id', reg.id)
+        : await supabase.from('dizimo_deducoes').insert(r);
+      if (error) return mostrarErro(form, erroBanco(error));
+      limparCacheBusca();
+      lista.mes = comp.slice(0, 7);
+      if (outro) {
+        toast('Despesa no cartão salva.');
+        st.valor = '';
+        st.descricao = '';
+        desenhar();
+        ctx.el.querySelector('#fValor').focus();
+        return;
+      }
+      toast(editando ? 'Despesa no cartão atualizada.' : 'Despesa no cartão salva. Ela já abate do dízimo do mês.');
+      window.location.hash = '#/inicio';
+      return;
+    }
 
     // Data igual ou anterior ao saldo inicial: pede confirmação para não confundir.
     const idsContas = st.tipo === 'entrada' ? [st.onde] : st.tipo === 'saida' ? st.linhas.map((l) => (l.conta || '').startsWith('c:') ? l.conta.slice(2) : '') : [st.de, st.para];
@@ -896,7 +954,7 @@ export async function renderLancar(ctx, tipoRota, id) {
 
   async function excluir() {
     if (!confirm('Excluir este lançamento?')) return;
-    const tabela = { entrada: 'entradas', saida: 'despesas', transf: 'transferencias' }[st.tipo];
+    const tabela = tipoRota === 'd' ? 'dizimo_deducoes' : { entrada: 'entradas', saida: 'despesas', transf: 'transferencias' }[st.tipo];
     const { error } = await supabase.from(tabela).delete().eq('id', reg.id);
     if (error) return mostrarErro(ctx.el.querySelector('#formLanc'), erroBanco(error));
     limparCacheBusca();

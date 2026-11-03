@@ -891,3 +891,8 @@ mark { background: #DCEFD6; color: inherit; border-radius: 4px; padding: 0 2px; 
 .btn-olho { color: var(--suave); flex-shrink: 0; }
 .btn-olho[aria-pressed="true"] { color: var(--verde); background: var(--verde-claro); }
 body.valores-ocultos .grafico canvas { filter: blur(6px); }
+
+/* Despesa da empresa paga no cartão (só abate do dízimo) */
+.lanc-d .lanc-icone { background: var(--azul-claro); color: var(--azul); }
+.lanc-d .item-valor { color: var(--suave); }
+.check-cartao { background: var(--azul-claro); border-radius: 12px; padding: 10px 12px; color: var(--azul); font-weight: 600; font-size: 14px; }

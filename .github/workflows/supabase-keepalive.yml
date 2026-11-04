@@ -1,0 +1,30 @@
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    - cron: '0 11,23 * * *'   # 2x ao dia: 08:00 e 20:00 no horário de Brasília
+  workflow_dispatch: {}        # permite rodar na mão pelo botão "Run workflow"
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consulta leve no banco
+        env:
+          SUPABASE_URL: https://noiormgajavwewwdinrt.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # As tabelas deste app não aceitam a chave anon (bloqueadas por segurança),
+          # então a rotina chama a função keepalive(), criada só para isso.
+          for funcao in keepalive; do
+            echo "Chamando $funcao..."
+            curl --fail --silent --show-error --max-time 30 --retry 3 --retry-delay 5 \
+              -o /dev/null \
+              -X POST "$SUPABASE_URL/rest/v1/rpc/$funcao" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{}'
+          done
+          echo "OK: banco consultado."
